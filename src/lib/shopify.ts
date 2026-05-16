@@ -176,6 +176,7 @@ export function normalizeShopifyCustomer(c: ShopifyCustomer) {
     shopifyTags: c.tags ? c.tags.split(",").map((t) => t.trim()) : [],
     acceptsMarketing: c.accepts_marketing,
     createdAt: new Date(c.created_at),
+    lastOrderAt: c.last_order_id ? new Date() : null,
   };
 }
 
