@@ -174,7 +174,7 @@ export function CustomerList() {
                         <ScoreBadge segment={c.segment} />
                       </td>
                       <td className="px-4 py-3 font-medium tabular-nums">
-                        {formatCurrency(c.totalSpent)}
+                        {formatCurrency(c.totalSpent ? Number(c.totalSpent) : null)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground tabular-nums">
                         {c.ordersCount ?? 0}

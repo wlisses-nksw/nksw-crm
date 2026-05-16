@@ -176,7 +176,7 @@ function DraggableCard({
             <ScoreBadge segment={c.segment} />
             {card.value && (
               <span className="text-xs font-semibold text-foreground">
-                {formatCurrency(card.value)}
+                {formatCurrency(Number(card.value))}
               </span>
             )}
           </div>

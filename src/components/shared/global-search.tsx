@@ -112,7 +112,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <ScoreBadge segment={c.segment} />
                     <span className="text-xs text-muted-foreground">
-                      {formatCurrency(c.totalSpent)}
+                      {formatCurrency(c.totalSpent ? Number(c.totalSpent) : null)}
                     </span>
                   </div>
                 </button>

@@ -119,9 +119,9 @@ export function CustomerProfile({ customer: initial }: Props) {
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="text-xs font-medium text-muted-foreground mb-3">Estatísticas</h3>
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Total Gasto" value={formatCurrency(customer.totalSpent)} />
+            <Stat label="Total Gasto" value={formatCurrency(customer.totalSpent ? Number(customer.totalSpent) : null)} />
             <Stat label="Pedidos" value={String(customer.ordersCount ?? 0)} />
-            <Stat label="Ticket Médio" value={formatCurrency(customer.averageOrderValue)} />
+            <Stat label="Ticket Médio" value={formatCurrency(customer.averageOrderValue ? Number(customer.averageOrderValue) : null)} />
             <Stat
               label="Última Compra"
               value={customer.lastOrderAt ? formatRelative(customer.lastOrderAt) : "—"}
@@ -271,7 +271,7 @@ export function CustomerProfile({ customer: initial }: Props) {
                       </span>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-sm">{formatCurrency(order.totalPrice)}</p>
+                      <p className="font-semibold text-sm">{formatCurrency(order.totalPrice ? Number(order.totalPrice) : null)}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
                     </div>
                   </div>
@@ -283,7 +283,7 @@ export function CustomerProfile({ customer: initial }: Props) {
                             {item.quantity}x {item.title}
                             {item.variantTitle && ` — ${item.variantTitle}`}
                           </span>
-                          <span>{formatCurrency(item.price)}</span>
+                          <span>{formatCurrency(item.price ? Number(item.price) : null)}</span>
                         </li>
                       ))}
                     </ul>
