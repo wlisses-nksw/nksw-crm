@@ -4,6 +4,7 @@ import { getCustomerProfile, assignShopper, addNote, addTag, removeTag } from "@
 import { refreshCustomerInsights } from "@/services/customer.service";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -77,7 +78,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           action: "UPDATE_CUSTOMER",
           resource: "customer",
           resourceId: id,
-          newData: data as Record<string, unknown>,
+          newData: data as unknown as Prisma.InputJsonValue,
         },
       });
       break;
