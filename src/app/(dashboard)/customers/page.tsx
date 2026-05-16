@@ -1,28 +1,41 @@
 import { Header } from "@/components/layout/header";
 import { CustomerList } from "@/components/customers/customer-list";
+import { RFMPanel } from "@/components/customers/rfm-panel";
 import { Button } from "@/components/ui/button";
-import { UserPlus, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default function CustomersPage() {
+async function getClientesData() {
+  try {
+    const res = await fetch("https://nksw-api.vercel.app/data/clientes.json", {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.clientes ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function CustomersPage() {
+  const clientes = await getClientesData();
+
   return (
     <div className="flex flex-col min-h-full">
       <Header
         title="Clientes"
+        subtitle="Base completa + análise RFM"
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/settings/integrations">
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                Sincronizar
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Sincronizar
+          </Button>
         }
       />
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 space-y-6">
+        {clientes && <RFMPanel data={clientes} />}
         <CustomerList />
       </div>
     </div>
