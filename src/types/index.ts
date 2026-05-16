@@ -2,6 +2,7 @@ import type {
   User,
   Customer,
   Order,
+  LineItem,
   Task,
   Note,
   PipelineCard,
@@ -14,6 +15,8 @@ import type {
   AbandonedCart,
 } from "@prisma/client";
 
+export type OrderWithLineItems = Order & { lineItems?: LineItem[] };
+
 export type { UserRole, CustomerSegment, TaskStatus, TaskType, TaskPriority } from "@prisma/client";
 
 // ============================================================
@@ -25,7 +28,7 @@ export type SafeUser = Omit<User, "passwordHash">;
 // Customer com relacionamentos
 // ============================================================
 export type CustomerWithRelations = Customer & {
-  orders?: Order[];
+  orders?: OrderWithLineItems[];
   tasks?: Task[];
   notes?: Note[];
   assignedShopper?: SafeUser | null;
