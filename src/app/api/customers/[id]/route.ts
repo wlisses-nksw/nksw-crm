@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           action: "UPDATE_CUSTOMER",
           resource: "customer",
           resourceId: id,
-          newData: data,
+          newData: data as Record<string, unknown>,
         },
       });
       break;
