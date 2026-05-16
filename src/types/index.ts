@@ -31,7 +31,7 @@ export type CustomerWithRelations = Customer & {
   orders?: OrderWithLineItems[];
   tasks?: Task[];
   notes?: Note[];
-  assignedShopper?: SafeUser | null;
+  assignedShopper?: Pick<User, "id" | "name" | "email" | "image" | "role"> | null;
   scores?: CustomerScore[];
   aiRecommendations?: AiRecommendation[];
   abandonedCarts?: AbandonedCart[];
