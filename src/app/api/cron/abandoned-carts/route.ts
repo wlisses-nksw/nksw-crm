@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fetchAbandonedCheckouts } from "@/lib/shopify";
 
 export async function GET(req: NextRequest) {
+  // Aceita Vercel cron (Authorization: Bearer CRON_SECRET) OU usuário logado
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const session = isCron ? true : await auth();
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ShoppingCart, ExternalLink, User, UserX, Phone, Mail, CheckCircle2, Send } from "lucide-react";
+import { ShoppingCart, ExternalLink, User, UserX, Phone, Mail, CheckCircle2, Send, RefreshCw } from "lucide-react";
 import { formatCurrency, formatRelative, formatPhone } from "@/lib/utils";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { Header } from "@/components/layout/header";
@@ -40,6 +40,7 @@ type Tab = "pending" | "contacted";
 export default function CarrinhosPage() {
   const [carts, setCarts] = useState<Cart[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [tab, setTab] = useState<Tab>("pending");
 
   const load = useCallback(() => {
@@ -56,6 +57,23 @@ export default function CarrinhosPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const syncCarts = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/cron/abandoned-carts");
+      const json = await res.json();
+      if (res.ok) {
+        toast.success(`Atualizado! ${json.synced} carrinhos sincronizados.`);
+        load();
+      } else {
+        toast.error(json.error ?? "Erro ao sincronizar");
+      }
+    } catch {
+      toast.error("Erro ao sincronizar carrinhos");
+    }
+    setSyncing(false);
+  };
 
   const markContacted = async (cartId: string, contacted: boolean) => {
     await fetch("/api/abandoned-carts", {
@@ -88,14 +106,23 @@ export default function CarrinhosPage() {
       <Header title="Carrinhos Abandonados" />
       <div className="flex-1 p-6 space-y-6">
 
-        {/* Abas */}
-        <div className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit">
-          <TabBtn active={tab === "pending"} onClick={() => setTab("pending")} count={pending.length}>
-            Não Contatados
-          </TabBtn>
-          <TabBtn active={tab === "contacted"} onClick={() => setTab("contacted")} count={contacted.length}>
-            Contatados
-          </TabBtn>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between">
+          {/* Abas */}
+          <div className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit">
+            <TabBtn active={tab === "pending"} onClick={() => setTab("pending")} count={pending.length}>
+              Não Contatados
+            </TabBtn>
+            <TabBtn active={tab === "contacted"} onClick={() => setTab("contacted")} count={contacted.length}>
+              Contatados
+            </TabBtn>
+          </div>
+
+          {/* Botão sync */}
+          <Button variant="outline" size="sm" onClick={syncCarts} disabled={syncing} className="gap-2">
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Atualizar"}
+          </Button>
         </div>
 
         {displayed.length === 0 && (
