@@ -48,7 +48,7 @@ export function AbandonedCartsAlert({ count, value }: AbandonedCartsAlertProps) 
         </div>
 
         <Link
-          href="/customers?hasAbandonedCart=true"
+          href="/carrinhos"
           className="block text-center text-xs text-primary hover:underline mt-2"
         >
           Ver clientes com carrinho abandonado →
