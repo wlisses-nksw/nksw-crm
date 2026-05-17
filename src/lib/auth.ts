@@ -96,7 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 // Helpers de permissão
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   ADMIN: 4,
-  GERENTE: 3,
+  SUPERVISOR: 3,
   PERSONAL_SHOPPER: 2,
   VIEWER: 1,
 };
@@ -110,7 +110,7 @@ export function canEdit(role: UserRole): boolean {
 }
 
 export function canManage(role: UserRole): boolean {
-  return hasPermission(role, "GERENTE");
+  return hasPermission(role, "SUPERVISOR");
 }
 
 export function isAdmin(role: UserRole): boolean {

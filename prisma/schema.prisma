@@ -14,7 +14,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
-  GERENTE
+  SUPERVISOR
   PERSONAL_SHOPPER
   VIEWER
 }

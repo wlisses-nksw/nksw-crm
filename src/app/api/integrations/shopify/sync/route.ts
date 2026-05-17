@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  if (!hasPermission(session.user.role, "GERENTE")) {
+  if (!hasPermission(session.user.role, "SUPERVISOR")) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
