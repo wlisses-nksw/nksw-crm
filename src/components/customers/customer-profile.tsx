@@ -147,6 +147,37 @@ export function CustomerProfile({ customer: initial }: Props) {
           </div>
         )}
 
+        {/* Tamanhos */}
+        {(() => {
+          const sizes = extractSizes(customer.orders ?? []);
+          if (!sizes.top && !sizes.bottom && !sizes.general) return null;
+          return (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h3 className="text-xs font-medium text-muted-foreground mb-3">Tamanho habitual</h3>
+              <div className="flex flex-wrap gap-2">
+                {sizes.top && (
+                  <div className="flex-1 min-w-[60px] bg-muted/50 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Top / Bojo</p>
+                    <p className="text-sm font-bold">{sizes.top}</p>
+                  </div>
+                )}
+                {sizes.bottom && (
+                  <div className="flex-1 min-w-[60px] bg-muted/50 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Calcinha / Bottom</p>
+                    <p className="text-sm font-bold">{sizes.bottom}</p>
+                  </div>
+                )}
+                {!sizes.top && !sizes.bottom && sizes.general && (
+                  <div className="flex-1 bg-muted/50 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Tamanho</p>
+                    <p className="text-sm font-bold">{sizes.general}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Tags */}
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -434,6 +465,48 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-semibold mt-0.5">{value}</p>
     </div>
   );
+}
+
+// Extrai tamanhos mais usados a partir dos variantTitles dos pedidos
+function extractSizes(orders: CustomerWithRelations["orders"]): {
+  top: string | null;
+  bottom: string | null;
+  general: string | null;
+} {
+  // Padrões de tamanho reconhecidos
+  const SIZE_RE = /\b(PP|P|M|GG|G|EG|XS|XL|XXL|S|L|\d{2})\b/i;
+  const TOP_KEYWORDS = ["top", "bojo", "bikini top", "cropped", "blusa", "camisa", "top de biquíni"];
+  const BOTTOM_KEYWORDS = ["calcinha", "bottom", "biquíni bottom", "calça", "short", "saia"];
+
+  const topCount: Record<string, number> = {};
+  const bottomCount: Record<string, number> = {};
+  const generalCount: Record<string, number> = {};
+
+  for (const order of (orders ?? [])) {
+    for (const item of (order.lineItems ?? [])) {
+      const variant = item.variantTitle ?? "";
+      const title = item.title.toLowerCase();
+      const sizeMatch = variant.match(SIZE_RE);
+      if (!sizeMatch) continue;
+      const size = sizeMatch[1].toUpperCase();
+
+      const isTop = TOP_KEYWORDS.some(k => title.includes(k));
+      const isBottom = BOTTOM_KEYWORDS.some(k => title.includes(k));
+
+      if (isTop) topCount[size] = (topCount[size] ?? 0) + (item.quantity ?? 1);
+      else if (isBottom) bottomCount[size] = (bottomCount[size] ?? 0) + (item.quantity ?? 1);
+      else generalCount[size] = (generalCount[size] ?? 0) + (item.quantity ?? 1);
+    }
+  }
+
+  const top1 = (arr: Record<string, number>) =>
+    Object.entries(arr).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  return {
+    top: top1(topCount),
+    bottom: top1(bottomCount),
+    general: top1(generalCount),
+  };
 }
 
 function RFMBar({ label, value, max }: { label: string; value: number; max: number }) {
