@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -13,12 +14,14 @@ import {
   Settings,
   LogOut,
   ShoppingBag,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Clientes", icon: Users },
+  { href: "/carrinhos", label: "Carrinhos", icon: ShoppingCart, badge: true },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/conversations", label: "Conversas", icon: MessageSquare },
@@ -32,6 +35,14 @@ const BOTTOM_NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/abandoned-carts")
+      .then(r => r.json())
+      .then(({ total }) => setCartCount(total ?? 0))
+      .catch(() => {});
+  }, [pathname]);
 
   return (
     <aside className="flex flex-col w-[220px] min-w-[220px] min-h-screen bg-white border-r border-border z-10">
@@ -57,8 +68,9 @@ export function Sidebar() {
         <p className="px-3 pb-1 pt-2 text-[10px] font-bold text-muted-foreground tracking-widest uppercase">
           Menu
         </p>
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {NAV.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname.startsWith(href);
+          const count = badge ? cartCount : 0;
           return (
             <Link
               key={href}
@@ -71,7 +83,12 @@ export function Sidebar() {
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {count > 0 && (
+                <span className="bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {count}
+                </span>
+              )}
             </Link>
           );
         })}
