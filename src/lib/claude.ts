@@ -172,22 +172,68 @@ NÃO use emojis em excesso. NÃO seja genérica. Escreva apenas a mensagem, sem 
 // ============================================================
 
 function buildCustomerContext(customer: CustomerWithRelations): string {
-  const orders = customer.orders ?? [];
+  const orders = (customer.orders ?? [])
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const now = new Date();
+  const daysSinceLast = customer.lastOrderAt
+    ? Math.floor((now.getTime() - new Date(customer.lastOrderAt).getTime()) / 86_400_000)
+    : null;
+  const daysSinceFirst = customer.firstOrderAt
+    ? Math.floor((now.getTime() - new Date(customer.firstOrderAt).getTime()) / 86_400_000)
+    : null;
+  const avgDaysBetween = customer.ordersCount && customer.ordersCount > 1 && daysSinceFirst
+    ? Math.floor(daysSinceFirst / (customer.ordersCount - 1))
+    : null;
+
+  const recentOrders = orders.slice(0, 8).map(o => {
+    const date = new Date(o.createdAt).toLocaleDateString("pt-BR");
+    const valor = `R$${Number(o.totalPrice).toFixed(2)}`;
+    const items = (o.lineItems ?? []).map(i => i.title).join(", ") || "—";
+    return `  • ${date} | ${valor} | ${items}`;
+  }).join("\n");
+
+  const topProducts = (() => {
+    const count: Record<string, number> = {};
+    for (const o of orders) {
+      for (const item of (o.lineItems ?? [])) {
+        const key = item.title.split(" - ")[0].trim();
+        count[key] = (count[key] ?? 0) + (item.quantity ?? 1);
+      }
+    }
+    return Object.entries(count)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, qty]) => `${name} (${qty}x)`)
+      .join(", ");
+  })();
 
   return `
+PERFIL DO CLIENTE
 Nome: ${customer.firstName} ${customer.lastName}
 Email: ${customer.email}
 Cidade: ${customer.city ?? "—"}, ${customer.state ?? "—"}
-Segmento: ${customer.segment}
-Score RFM: ${customer.rfmScore ?? "—"} (${customer.rfmLabel ?? "—"})
-Score engajamento: ${customer.engagementScore ?? "—"}/100
-Total gasto: R$${customer.totalSpent?.toString() ?? "0"}
+Cliente desde: ${customer.firstOrderAt ? new Date(customer.firstOrderAt).toLocaleDateString("pt-BR") : "—"}${daysSinceFirst ? ` (${Math.floor(daysSinceFirst / 30)} meses)` : ""}
+
+COMPORTAMENTO DE COMPRA
+Total gasto: R$${Number(customer.totalSpent ?? 0).toFixed(2)}
 Número de pedidos: ${customer.ordersCount ?? 0}
-Última compra: ${customer.lastOrderAt ? customer.lastOrderAt.toLocaleDateString("pt-BR") : "—"}
-Primeira compra: ${customer.firstOrderAt ? customer.firstOrderAt.toLocaleDateString("pt-BR") : "—"}
-Tags: ${customer.shopifyTags.join(", ") || "—"}
-Marketing aceito: ${customer.acceptsMarketing ? "Sim" : "Não"}
-${orders.length > 0 ? `Histórico: ${orders.length} pedidos` : ""}
+Ticket médio: R$${Number(customer.averageOrderValue ?? 0).toFixed(2)}
+Última compra: ${customer.lastOrderAt ? new Date(customer.lastOrderAt).toLocaleDateString("pt-BR") : "—"}${daysSinceLast !== null ? ` (há ${daysSinceLast} dias)` : ""}
+Intervalo médio entre compras: ${avgDaysBetween ? `${avgDaysBetween} dias` : "—"}
+Próxima compra esperada: ${avgDaysBetween && daysSinceLast !== null ? (daysSinceLast > avgDaysBetween ? "ATRASADA" : `em ~${avgDaysBetween - daysSinceLast} dias`) : "—"}
+
+SCORE RFM
+Segmento: ${customer.segment} (${customer.rfmLabel ?? "—"})
+Recência: ${customer.rfmRecency ?? "—"}/5 | Frequência: ${customer.rfmFrequency ?? "—"}/5 | Monetário: ${customer.rfmMonetary ?? "—"}/5
+Score total: ${customer.rfmScore ?? "—"}
+Aceita marketing: ${customer.acceptsMarketing ? "Sim" : "Não"}
+
+PRODUTOS MAIS COMPRADOS
+${topProducts || "—"}
+
+ÚLTIMOS PEDIDOS (mais recentes primeiro)
+${recentOrders || "Nenhum pedido encontrado"}
 `.trim();
 }
 
