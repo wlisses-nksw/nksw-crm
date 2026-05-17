@@ -122,7 +122,7 @@ export async function fetchOrdersByCustomer(customerId: string): Promise<Shopify
 export async function fetchAbandonedCheckouts(limit = 250): Promise<ShopifyCheckout[]> {
   const data = await shopifyGet<{ checkouts: ShopifyCheckout[] }>(
     "/checkouts.json",
-    { limit, status: "open" }
+    { limit, status: "open", created_at_min: "2026-05-01T00:00:00-03:00" }
   );
   return data.checkouts;
 }
