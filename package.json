@@ -12,7 +12,10 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "db:import": "tsx scripts/full-import.ts"
+    "db:import": "tsx scripts/full-import.ts",
+    "nuvem:import": "tsx scripts/import-nuvem.ts",
+    "stats:update": "tsx scripts/update-stats.ts",
+    "shopify:orders": "tsx scripts/import-shopify-orders.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

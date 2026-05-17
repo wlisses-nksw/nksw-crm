@@ -160,12 +160,14 @@ async function fetchAllOrders(): Promise<ShopifyOrder[]> {
   let page = 1;
 
   do {
-    const params: Record<string, string | number> = {
-      limit: 250,
-      status: "any",
-      financial_status: "paid",
-    };
-    if (cursor) params.page_info = cursor;
+    const params: Record<string, string | number> = { limit: 250 };
+    if (cursor) {
+      params.page_info = cursor;
+    } else {
+      params.status = "any";
+      params.financial_status = "paid";
+      params.created_at_min = "2014-01-01T00:00:00Z";
+    }
 
     const { data, cursor: next } = await shopifyFetch<{ orders: ShopifyOrder[] }>(
       "/orders.json",
