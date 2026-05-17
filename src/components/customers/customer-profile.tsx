@@ -23,6 +23,7 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
+  Send,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { formatCurrency, formatDate, formatRelative, formatPhone, getInitials } from "@/lib/utils";
@@ -54,6 +55,7 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [emailEngagements, setEmailEngagements] = useState<EmailEngagement[] | null>(null);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
 
   const updatePhoneMutation = useMutation({
     mutationFn: async (phone: string) => {
@@ -174,6 +176,25 @@ export function CustomerProfile({ customer: initial }: Props) {
                   <Pencil className="w-3 h-3" />
                 </button>
               </div>
+            )}
+            {customer.phone && (
+              <button
+                onClick={async () => {
+                  setSendingWhatsapp(true);
+                  try {
+                    const res = await fetch(`/api/customers/${customer.id}/send-whatsapp`, { method: "POST" });
+                    const json = await res.json();
+                    if (res.ok) toast.success("WhatsApp enviado via Voll!");
+                    else toast.error(json.error ?? "Erro ao enviar WhatsApp");
+                  } catch { toast.error("Erro ao enviar WhatsApp"); }
+                  setSendingWhatsapp(false);
+                }}
+                disabled={sendingWhatsapp}
+                className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 disabled:opacity-50 transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {sendingWhatsapp ? "Enviando..." : "Enviar WhatsApp"}
+              </button>
             )}
             {customer.city && (
               <InfoRow

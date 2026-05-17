@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ShoppingCart, ExternalLink, User, UserX, Phone, Mail, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, ExternalLink, User, UserX, Phone, Mail, CheckCircle2, Send } from "lucide-react";
 import { formatCurrency, formatRelative, formatPhone } from "@/lib/utils";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { Header } from "@/components/layout/header";
@@ -167,6 +167,19 @@ function CartCard({ cart, tab, onMark }: {
 }) {
   const items = cart.lineItems as LineItem[];
   const total = Number(cart.totalPrice);
+  const [sendingWpp, setSendingWpp] = useState(false);
+
+  const sendWhatsapp = async () => {
+    if (!cart.customer) return;
+    setSendingWpp(true);
+    try {
+      const res = await fetch(`/api/customers/${cart.customer.id}/send-whatsapp`, { method: "POST" });
+      const json = await res.json();
+      if (res.ok) toast.success("WhatsApp enviado via Voll!");
+      else toast.error(json.error ?? "Erro ao enviar WhatsApp");
+    } catch { toast.error("Erro ao enviar WhatsApp"); }
+    setSendingWpp(false);
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex gap-4">
@@ -225,10 +238,22 @@ function CartCard({ cart, tab, onMark }: {
             </a>
           )}
           {tab === "pending" ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
-              <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
-              Contatado
-            </Button>
+            <div className="flex flex-col items-end gap-1.5">
+              {cart.customer?.phone && (
+                <button
+                  onClick={sendWhatsapp}
+                  disabled={sendingWpp}
+                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 disabled:opacity-50"
+                >
+                  <Send className="w-3 h-3" />
+                  {sendingWpp ? "Enviando..." : "WhatsApp"}
+                </button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
+                <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
+                Contatado
+              </Button>
+            </div>
           ) : (
             <button onClick={() => onMark(cart.id, false)} className="text-xs text-muted-foreground hover:text-foreground underline">
               Desfazer
