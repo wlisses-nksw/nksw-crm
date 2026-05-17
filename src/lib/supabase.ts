@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios");
+  return createClient(url, key);
+}
 
 export async function uploadFromUrl(url: string, path: string): Promise<string | null> {
   try {
@@ -12,6 +14,7 @@ export async function uploadFromUrl(url: string, path: string): Promise<string |
     const buffer = await res.arrayBuffer();
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
 
+    const supabase = getSupabase();
     const { error } = await supabase.storage
       .from("whatsapp-media")
       .upload(path, buffer, { contentType, upsert: true });
