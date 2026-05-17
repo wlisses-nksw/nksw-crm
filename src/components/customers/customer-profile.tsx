@@ -59,7 +59,10 @@ export function CustomerProfile({ customer: initial }: Props) {
       });
       return res.json();
     },
-    onSuccess: () => toast.success("Insights atualizados"),
+    onSuccess: () => {
+      toast.success("Insights atualizados");
+      queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+    },
     onError: () => toast.error("Erro ao atualizar insights"),
   });
 
