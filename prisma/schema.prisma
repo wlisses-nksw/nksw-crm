@@ -293,8 +293,9 @@ model AbandonedCart {
   checkoutUrl String?
   lineItems   Json
 
-  recoveredAt DateTime?
-  abandonedAt DateTime
+  recoveredAt  DateTime?
+  contactedAt  DateTime?
+  abandonedAt  DateTime
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
