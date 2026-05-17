@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { uploadFromUrl } from "@/lib/supabase";
 
 // Normaliza telefone para comparação: remove tudo exceto dígitos, remove DDI 55 se tiver 13 dígitos
 function normalizePhone(phone: string): string {
@@ -17,6 +18,7 @@ interface VollMessage {
   agent_name: string;
   sent: string | null;
   read: string | null;
+  file_url?: string;
 }
 
 interface VollEndedSession {
@@ -72,6 +74,19 @@ export async function POST(req: NextRequest) {
   const humanMessages = payload.messages?.filter(m => m.message_type === "text") ?? [];
   const lastMsg = humanMessages.at(-1);
 
+  // Faz upload permanente das imagens no Supabase Storage
+  const messages = await Promise.all(
+    (payload.messages ?? []).map(async (m, idx) => {
+      if (m.message_type === "image" && m.file_url) {
+        const ext = "jpg";
+        const path = `voll/${payload.id}/${idx}.${ext}`;
+        const permanentUrl = await uploadFromUrl(m.file_url, path);
+        return permanentUrl ? { ...m, file_url: permanentUrl } : m;
+      }
+      return m;
+    })
+  );
+
   const snippet = [
     payload.tabulation?.name ?? "Encerrado",
     payload.agent?.name ? `Atendente: ${payload.agent.name}` : null,
@@ -84,9 +99,9 @@ export async function POST(req: NextRequest) {
       channel: "WHATSAPP",
       direction: "INBOUND",
       subject: `Protocolo ${payload.protocol}`,
-      body: JSON.stringify(payload.messages ?? []),
+      body: JSON.stringify(messages),
       snippet,
-      gmailThreadId: payload.id, // reutilizando campo para ID de sessão Voll
+      gmailThreadId: payload.id,
       createdAt: new Date(payload.started_at),
       updatedAt: new Date(payload.ended_at),
     },
