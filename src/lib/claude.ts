@@ -11,12 +11,25 @@ export const anthropic = new Anthropic({
 
 export async function generateCustomerInsights(
   customer: CustomerWithRelations,
-  segmentTopProducts?: string[]
+  segmentTopProducts?: string[],
+  segmentContext?: { summary?: string; sequences?: { after: string; buyNext: string[] }[] }
 ): Promise<CustomerInsight[]> {
   const context = buildCustomerContext(customer);
-  const segmentContext = segmentTopProducts && segmentTopProducts.length > 0
-    ? `\nPRODUTOS MAIS COMPRADOS POR CLIENTES DO MESMO SEGMENTO (${customer.segment}):\n${segmentTopProducts.slice(0, 10).map((p, i) => `${i + 1}. ${p}`).join("\n")}`
-    : "";
+
+  let segmentBlock = "";
+  if (segmentTopProducts && segmentTopProducts.length > 0) {
+    segmentBlock += `\nPRODUTOS POPULARES NO SEGMENTO ${customer.segment} NÃO COMPRADOS POR ESTE CLIENTE:\n`;
+    segmentBlock += segmentTopProducts.map((p, i) => `${i + 1}. ${p}`).join("\n");
+  }
+  if (segmentContext?.sequences && segmentContext.sequences.length > 0) {
+    segmentBlock += `\n\nSEQUÊNCIAS DE COMPRA DO SEGMENTO (clientes que compraram → costumam comprar depois):\n`;
+    segmentBlock += segmentContext.sequences
+      .map(s => `• Após "${s.after}" → ${s.buyNext.join(", ")}`)
+      .join("\n");
+  }
+  if (segmentContext?.summary) {
+    segmentBlock += `\n\nPERFIL DO SEGMENTO: ${segmentContext.summary}`;
+  }
 
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -35,7 +48,7 @@ Retorne APENAS JSON válido: { "insights": [{ "type": "opportunity"|"risk"|"acti
     messages: [
       {
         role: "user",
-        content: `Analise este cliente e retorne apenas JSON:\n\n${context}${segmentContext}`,
+        content: `Analise este cliente e retorne apenas JSON:\n\n${context}${segmentBlock}`,
       },
     ],
   });

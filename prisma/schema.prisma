@@ -711,6 +711,28 @@ model Integration {
 }
 
 // ============================================================
+// PERFIS DE SEGMENTO (atualizado mensalmente via script)
+// ============================================================
+
+model SegmentProfile {
+  id      String @id @default(cuid())
+  segment String @unique
+
+  topProducts      Json // string[] — top 20 produtos mais comprados no segmento
+  nextBuyProducts  Json // { after: string, buyNext: string[] }[] — sequências de compra
+  avgTicket        Float
+  avgOrdersPerYear Float
+  avgDaysBetween   Int
+  totalCustomers   Int
+  summary          String // texto gerado por SQL, sem IA
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("segment_profiles")
+}
+
+// ============================================================
 // AUDITORIA
 // ============================================================
 

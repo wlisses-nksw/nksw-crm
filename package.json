@@ -15,6 +15,7 @@
     "db:import": "tsx scripts/full-import.ts",
     "nuvem:import": "tsx scripts/import-nuvem.ts",
     "stats:update": "tsx scripts/update-stats.ts",
+    "segment:update": "tsx scripts/update-segment-profiles.ts",
     "shopify:orders": "tsx scripts/import-shopify-orders.ts"
   },
   "dependencies": {

@@ -178,31 +178,50 @@ export async function refreshCustomerInsights(customerId: string): Promise<void>
 
   await recalculateCustomerRFM(customerId);
 
-  // Busca top produtos do mesmo segmento (excluindo os que o cliente já comprou)
+  // Produtos que o cliente já comprou (para excluir das recomendações)
   const customerProductTitles = new Set(
     (customer.orders ?? []).flatMap(o => (o.lineItems ?? []).map(i => i.title.split(" - ")[0].trim()))
   );
 
-  const segmentProducts = await db.$queryRaw<Array<{ title: string; total: bigint }>>`
-    SELECT
-      split_part(li.title, ' - ', 1) AS title,
-      SUM(li.quantity)::bigint        AS total
-    FROM line_items li
-    JOIN orders o ON o.id = li."orderId"
-    JOIN customers c ON c.id = o."customerId"
-    WHERE c.segment = ${customer.segment}::"CustomerSegment"
-      AND o."financialStatus" = 'PAID'
-    GROUP BY split_part(li.title, ' - ', 1)
-    ORDER BY total DESC
-    LIMIT 30
-  `;
+  // Carrega perfil de segmento pré-computado (atualizado mensalmente via segment:update)
+  const segmentProfile = await db.segmentProfile.findUnique({
+    where: { segment: customer.segment },
+  });
 
-  const segmentTopProducts = segmentProducts
-    .map(p => p.title.trim())
-    .filter(t => t && !customerProductTitles.has(t))
-    .slice(0, 10);
+  let segmentTopProducts: string[] = [];
+  let segmentContext: { summary?: string; sequences?: { after: string; buyNext: string[] }[] } = {};
 
-  const insights = await generateCustomerInsights(customer, segmentTopProducts);
+  if (segmentProfile) {
+    segmentTopProducts = (segmentProfile.topProducts as string[])
+      .filter(p => !customerProductTitles.has(p))
+      .slice(0, 10);
+
+    // Sequências relevantes: apenas as que envolvem produtos que o cliente já comprou
+    const allSequences = segmentProfile.nextBuyProducts as { after: string; buyNext: string[] }[];
+    const relevantSequences = allSequences
+      .filter(s => customerProductTitles.has(s.after))
+      .map(s => ({ after: s.after, buyNext: s.buyNext.filter(p => !customerProductTitles.has(p)) }))
+      .filter(s => s.buyNext.length > 0)
+      .slice(0, 5);
+
+    segmentContext = { summary: segmentProfile.summary, sequences: relevantSequences };
+  } else {
+    // Fallback: consulta live se perfil não existe ainda
+    const raw = await db.$queryRaw<Array<{ title: string }>>`
+      SELECT split_part(li.title, ' - ', 1) AS title
+      FROM line_items li
+      JOIN orders o    ON o.id = li."orderId"
+      JOIN customers c ON c.id = o."customerId"
+      WHERE c.segment = ${customer.segment}::"CustomerSegment"
+        AND o."financialStatus" = 'PAID'
+      GROUP BY split_part(li.title, ' - ', 1)
+      ORDER BY SUM(li.quantity) DESC
+      LIMIT 20
+    `;
+    segmentTopProducts = raw.map(p => p.title.trim()).filter(t => t && !customerProductTitles.has(t)).slice(0, 10);
+  }
+
+  const insights = await generateCustomerInsights(customer, segmentTopProducts, segmentContext);
 
   // Salva como recomendações do tipo "insight"
   await db.aiRecommendation.deleteMany({
