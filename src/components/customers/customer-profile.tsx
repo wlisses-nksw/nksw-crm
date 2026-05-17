@@ -424,8 +424,9 @@ export function CustomerProfile({ customer: initial }: Props) {
                   </h3>
                 </div>
                 {customer.conversations.map((conv) => {
-                  const msgs = (() => { try { return JSON.parse(conv.body) as Array<{ content: string; direction: string; message_type: string; date: string; agent_name: string }> } catch { return [] } })();
-                  const humanMsgs = msgs.filter(m => m.message_type === "text");
+                  type VollMsg = { content: string; direction: string; message_type: string; date: string; agent_name: string; file_url?: string };
+                  const msgs = (() => { try { return JSON.parse(conv.body) as VollMsg[] } catch { return [] as VollMsg[] } })();
+                  const visibleMsgs = msgs.filter(m => m.message_type === "text" || m.message_type === "image");
                   const isOpen = expandedSession === conv.id;
                   return (
                     <div key={conv.id}>
@@ -444,15 +445,21 @@ export function CustomerProfile({ customer: initial }: Props) {
                           </div>
                         </div>
                       </button>
-                      {isOpen && humanMsgs.length > 0 && (
+                      {isOpen && visibleMsgs.length > 0 && (
                         <div className="px-4 pb-3 space-y-2 bg-muted/20">
-                          {humanMsgs.map((m, i) => (
+                          {visibleMsgs.map((m, i) => (
                             <div key={i} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
                               <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${m.direction === "out" ? "bg-green-100 text-green-900" : "bg-background border border-border text-foreground"}`}>
                                 {m.agent_name && m.direction === "out" && (
                                   <p className="text-[9px] text-green-700 font-medium mb-0.5">{m.agent_name}</p>
                                 )}
-                                <p className="whitespace-pre-wrap">{m.content}</p>
+                                {m.message_type === "image" && m.file_url ? (
+                                  <a href={m.file_url} target="_blank" rel="noopener noreferrer">
+                                    <img src={m.file_url} alt="imagem" className="rounded-lg max-w-[200px] max-h-[200px] object-cover" />
+                                  </a>
+                                ) : (
+                                  <p className="whitespace-pre-wrap">{m.content}</p>
+                                )}
                                 <p className="text-[9px] opacity-50 mt-0.5 text-right">{new Date(m.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
                               </div>
                             </div>
