@@ -9,8 +9,6 @@ import {
   Users,
   Kanban,
   CheckSquare,
-  MessageSquare,
-  Zap,
   Settings,
   LogOut,
   ShoppingBag,
@@ -24,8 +22,6 @@ const NAV = [
   { href: "/carrinhos", label: "Carrinhos", icon: ShoppingCart, badge: true },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/conversations", label: "Conversas", icon: MessageSquare },
-  { href: "/automations", label: "Automações", icon: Zap },
 ];
 
 const BOTTOM_NAV = [
