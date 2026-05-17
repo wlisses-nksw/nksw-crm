@@ -16,7 +16,8 @@
     "nuvem:import": "tsx scripts/import-nuvem.ts",
     "stats:update": "tsx scripts/update-stats.ts",
     "segment:update": "tsx scripts/update-segment-profiles.ts",
-    "shopify:orders": "tsx scripts/import-shopify-orders.ts"
+    "shopify:orders": "tsx scripts/import-shopify-orders.ts",
+    "shopify:webhooks": "tsx scripts/register-webhooks.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

@@ -192,6 +192,48 @@ export function CustomerProfile({ customer: initial }: Props) {
         </div>
 
         {/* RFM Score */}
+        {/* Carrinho Abandonado */}
+        {customer.abandonedCarts && customer.abandonedCarts.filter(c => !c.recoveredAt).length > 0 && (() => {
+          const cart = customer.abandonedCarts!.filter(c => !c.recoveredAt)[0];
+          const items = cart.lineItems as Array<{ title: string; variantTitle?: string; quantity: number; price: number }>;
+          return (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  Carrinho abandonado
+                </h3>
+                <span className="text-xs text-orange-600">{formatRelative(cart.abandonedAt)}</span>
+              </div>
+              <ul className="space-y-1 mb-3">
+                {items.slice(0, 4).map((item, i) => (
+                  <li key={i} className="text-xs text-orange-800">
+                    {item.quantity}x {item.title}{item.variantTitle ? ` — ${item.variantTitle}` : ""}
+                    <span className="text-orange-600 ml-1">R${Number(item.price).toFixed(2)}</span>
+                  </li>
+                ))}
+                {items.length > 4 && <li className="text-xs text-orange-500">+{items.length - 4} itens</li>}
+              </ul>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-orange-800">
+                  R${Number(cart.totalPrice).toFixed(2)}
+                </span>
+                {cart.checkoutUrl && (
+                  <a
+                    href={cart.checkoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-orange-700 hover:text-orange-900 flex items-center gap-1 underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Enviar link
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {customer.rfmScore && (
           <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="text-xs font-medium text-muted-foreground mb-3">Score RFM</h3>
