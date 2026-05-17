@@ -56,11 +56,26 @@ export async function POST(req: NextRequest) {
 
     case "checkouts/create":
     case "checkouts/update": {
-      // Carrinho abandonado
-      const email = payload.email as string | null;
+      if (payload.completed_at) break; // já finalizado, ignora
+
+      const email = (payload.email as string | null)?.toLowerCase().trim() ?? null;
       const customer = email
-        ? await db.customer.findFirst({ where: { email: email.toLowerCase() } })
+        ? await db.customer.findFirst({ where: { email }, select: { id: true } })
         : null;
+
+      // Normaliza line_items para camelCase antes de salvar
+      const lineItems = (payload.line_items ?? []).map((i: Record<string, unknown>) => ({
+        productId: i.product_id ? String(i.product_id) : null,
+        variantId: i.variant_id ? String(i.variant_id) : null,
+        title: i.title ?? "",
+        variantTitle: i.variant_title ?? null,
+        quantity: Number(i.quantity) || 1,
+        price: parseFloat(String(i.price ?? "0")),
+        sku: i.sku ?? null,
+      }));
+
+      const checkoutUrl = (payload.abandoned_checkout_url ?? payload.checkout_url ?? null) as string | null;
+      const totalPrice = parseFloat(String(payload.total_price ?? "0"));
 
       await db.abandonedCart.upsert({
         where: { shopifyCheckoutId: String(payload.id) },
@@ -68,19 +83,42 @@ export async function POST(req: NextRequest) {
           shopifyCheckoutId: String(payload.id),
           customerId: customer?.id ?? null,
           email,
-          totalPrice: parseFloat(payload.total_price ?? "0"),
-          currency: payload.currency ?? "BRL",
-          checkoutUrl: payload.abandoned_checkout_url ?? payload.checkout_url,
-          lineItems: payload.line_items ?? [],
-          abandonedAt: new Date(payload.updated_at ?? new Date()),
+          totalPrice,
+          currency: (payload.currency as string) ?? "BRL",
+          checkoutUrl,
+          lineItems,
+          abandonedAt: new Date((payload.updated_at as string) ?? new Date()),
         },
         update: {
-          totalPrice: parseFloat(payload.total_price ?? "0"),
-          lineItems: payload.line_items ?? [],
-          abandonedAt: new Date(payload.updated_at ?? new Date()),
+          totalPrice,
+          checkoutUrl,
+          lineItems,
+          customerId: customer?.id ?? null,
+          abandonedAt: new Date((payload.updated_at as string) ?? new Date()),
           updatedAt: new Date(),
         },
       });
+
+      console.log(`[webhook] Carrinho ${topic}: ${email} R$${totalPrice}`);
+      break;
+    }
+
+    case "orders/create": {
+      // Marca o carrinho como recuperado quando pedido é criado
+      const checkoutToken = payload.checkout_token as string | null;
+      const checkoutId = payload.checkout_id ? String(payload.checkout_id) : null;
+
+      if (checkoutId) {
+        await db.abandonedCart.updateMany({
+          where: { shopifyCheckoutId: checkoutId, recoveredAt: null },
+          data: { recoveredAt: new Date() },
+        });
+      } else if (checkoutToken) {
+        await db.abandonedCart.updateMany({
+          where: { shopifyCheckoutId: { contains: checkoutToken }, recoveredAt: null },
+          data: { recoveredAt: new Date() },
+        });
+      }
       break;
     }
   }
