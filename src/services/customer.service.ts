@@ -136,6 +136,11 @@ export async function getCustomerProfile(id: string): Promise<CustomerWithRelati
         orderBy: { abandonedAt: "desc" },
         take: 3,
       },
+      conversations: {
+        where: { channel: "WHATSAPP" },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
       _count: {
         select: { orders: true, tasks: true, conversations: true },
       },

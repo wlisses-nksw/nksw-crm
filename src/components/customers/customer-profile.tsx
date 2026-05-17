@@ -21,6 +21,8 @@ import {
   X,
   MousePointerClick,
   Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { formatCurrency, formatDate, formatRelative, formatPhone, getInitials } from "@/lib/utils";
@@ -51,6 +53,7 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [phoneInput, setPhoneInput] = useState(customer.phone ?? "");
   const [emailEngagements, setEmailEngagements] = useState<EmailEngagement[] | null>(null);
   const [loadingEmails, setLoadingEmails] = useState(false);
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   const updatePhoneMutation = useMutation({
     mutationFn: async (phone: string) => {
@@ -408,6 +411,57 @@ export function CustomerProfile({ customer: initial }: Props) {
                     <p className="text-sm text-muted-foreground">{n.content}</p>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Histórico WhatsApp (Voll) */}
+            {customer.conversations && customer.conversations.length > 0 && (
+              <div className="bg-card border border-border rounded-xl divide-y divide-border">
+                <div className="px-4 py-3 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-green-600" />
+                  <h3 className="text-xs font-medium text-muted-foreground">
+                    WhatsApp — {customer.conversations.length} atendimento{customer.conversations.length !== 1 ? "s" : ""}
+                  </h3>
+                </div>
+                {customer.conversations.map((conv) => {
+                  const msgs = (() => { try { return JSON.parse(conv.body) as Array<{ content: string; direction: string; message_type: string; date: string; agent_name: string }> } catch { return [] } })();
+                  const humanMsgs = msgs.filter(m => m.message_type === "text");
+                  const isOpen = expandedSession === conv.id;
+                  return (
+                    <div key={conv.id}>
+                      <button
+                        className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
+                        onClick={() => setExpandedSession(isOpen ? null : conv.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium">{conv.subject}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{conv.snippet}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-muted-foreground">{formatDate(conv.createdAt)}</span>
+                            {isOpen ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
+                          </div>
+                        </div>
+                      </button>
+                      {isOpen && humanMsgs.length > 0 && (
+                        <div className="px-4 pb-3 space-y-2 bg-muted/20">
+                          {humanMsgs.map((m, i) => (
+                            <div key={i} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+                              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${m.direction === "out" ? "bg-green-100 text-green-900" : "bg-background border border-border text-foreground"}`}>
+                                {m.agent_name && m.direction === "out" && (
+                                  <p className="text-[9px] text-green-700 font-medium mb-0.5">{m.agent_name}</p>
+                                )}
+                                <p className="whitespace-pre-wrap">{m.content}</p>
+                                <p className="text-[9px] opacity-50 mt-0.5 text-right">{new Date(m.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

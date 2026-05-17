@@ -35,6 +35,7 @@ export type CustomerWithRelations = Customer & {
   scores?: CustomerScore[];
   aiRecommendations?: AiRecommendation[];
   abandonedCarts?: AbandonedCart[];
+  conversations?: Conversation[];
   _count?: {
     orders: number;
     tasks: number;
