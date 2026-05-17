@@ -57,11 +57,17 @@ export function CustomerProfile({ customer: initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "refresh_insights" }),
       });
+      if (!res.ok) throw new Error("Erro na API");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Busca dados atualizados (incluindo novos aiRecommendations)
+      const res = await fetch(`/api/customers/${customer.id}`);
+      if (res.ok) {
+        const { data } = await res.json() as { data: typeof initial };
+        setCustomer(data);
+      }
       toast.success("Insights atualizados");
-      queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
     },
     onError: () => toast.error("Erro ao atualizar insights"),
   });
@@ -96,7 +102,7 @@ export function CustomerProfile({ customer: initial }: Props) {
 
           <div className="mt-4 space-y-2">
             <InfoRow icon={Mail} label={customer.email} />
-            {customer.phone && <InfoRow icon={Phone} label={formatPhone(customer.phone)} />}
+            <InfoRow icon={Phone} label={customer.phone ? formatPhone(customer.phone) : "Telefone não cadastrado"} muted={!customer.phone} />
             {customer.city && (
               <InfoRow
                 icon={MapPin}
@@ -461,11 +467,11 @@ export function CustomerProfile({ customer: initial }: Props) {
   );
 }
 
-function InfoRow({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+function InfoRow({ icon: Icon, label, muted }: { icon: React.ElementType; label: string; muted?: boolean }) {
   return (
     <div className="flex items-center gap-2 text-sm">
       <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-      <span className="text-muted-foreground">{label}</span>
+      <span className={muted ? "text-muted-foreground/50 italic" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }
