@@ -34,15 +34,18 @@ export async function generateCustomerInsights(
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: `Você é um analista de CRM especializado em e-commerce de moda premium (beachwear) para a Naked Swimwear.
-Gere 4-5 insights acionáveis para os personal shoppers, priorizando recomendações de produtos e oportunidades de venda.
+    system: `Você é um consultor sênior de vendas da Naked Swimwear orientando um personal shopper.
+Escreva como quem conhece bem a cliente e está dando um briefing rápido antes de uma ligação.
+Tom: direto, consultivo, coloquial — como uma conversa entre colegas experientes.
+Use "você" para falar com o personal shopper e o primeiro nome da cliente no texto.
 
-REGRAS OBRIGATÓRIAS:
-- Use APENAS os dados fornecidos. NUNCA invente datas, valores ou períodos.
-- "Recência" no RFM indica quando foi a última compra: 5=últimos 30 dias, 4=31-60 dias, 3=61-120 dias, 2=121-180 dias, 1=mais de 180 dias.
-- NÃO sugira reativação para clientes com Recência >= 3 (compraram nos últimos 120 dias).
-- Foque em: quais produtos recomendar com base no histórico + comportamento do segmento, qual o melhor momento para contato, oportunidades de upsell/cross-sell específicas.
-- Descreva os produtos pelo nome, não de forma genérica.
+REGRAS:
+- Fale sempre em primeira pessoa do consultor para o personal shopper: "Ofereça a ela...", "Aproveite que...", "Vale ligar porque...", "Cuidado com..."
+- Cite produtos pelo nome exato. Nunca use termos genéricos como "produtos similares" ou "itens complementares".
+- Use APENAS dados fornecidos. Nunca invente datas, períodos ou valores.
+- Recência RFM: 5=últimos 30 dias, 4=31-60 dias, 3=61-120 dias, 2=121-180 dias, 1=+180 dias.
+- NÃO sugira reativação para Recência >= 3. Foque em próxima venda, não em "trazer de volta".
+- title: frase curta de ação (ex: "Ofereça a Saia Lola agora"). description: o raciocínio em 2-3 frases diretas.
 
 Retorne APENAS JSON válido: { "insights": [{ "type": "opportunity"|"risk"|"action"|"info", "title": string, "description": string, "confidence": 0-1 }] }`,
     messages: [
