@@ -67,7 +67,7 @@ interface ShopifyOrder {
   tags: string; note: string | null; processed_at: string | null;
   cancelled_at: string | null; created_at: string;
   customer?: ShopifyCustomerInOrder;
-  shipping_address?: { city?: string; province?: string; country?: string; zip?: string; address1?: string };
+  shipping_address?: { city?: string; province?: string; country?: string; zip?: string; address1?: string; phone?: string };
   discount_codes?: unknown[];
   line_items: Array<{
     id: number; product_id: number | null; variant_id: number | null;
@@ -180,7 +180,7 @@ async function main() {
           email: (c.email || o.email || "").toLowerCase().trim(),
           firstName: c.first_name ?? "",
           lastName: c.last_name ?? "",
-          phone: c.phone ?? null,
+          phone: c.phone || o.shipping_address?.phone || null,
           city: o.shipping_address?.city ?? null,
           state: o.shipping_address?.province ?? null,
           country: o.shipping_address?.country ?? "Brazil",

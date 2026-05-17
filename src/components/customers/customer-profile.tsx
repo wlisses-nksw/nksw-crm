@@ -16,6 +16,9 @@ import {
   ExternalLink,
   Plus,
   RotateCcw,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { formatCurrency, formatDate, formatRelative, formatPhone, getInitials } from "@/lib/utils";
@@ -30,6 +33,26 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [customer, setCustomer] = useState(initial);
   const [activeTab, setActiveTab] = useState<"timeline" | "orders" | "ai" | "tasks">("timeline");
   const [note, setNote] = useState("");
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState(customer.phone ?? "");
+
+  const updatePhoneMutation = useMutation({
+    mutationFn: async (phone: string) => {
+      const res = await fetch(`/api/customers/${customer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", data: { phone } }),
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    onSuccess: () => {
+      setCustomer(c => ({ ...c, phone: phoneInput }));
+      setEditingPhone(false);
+      toast.success("Telefone atualizado");
+    },
+    onError: () => toast.error("Erro ao salvar telefone"),
+  });
 
   const queryClient = useQueryClient();
 
@@ -102,7 +125,37 @@ export function CustomerProfile({ customer: initial }: Props) {
 
           <div className="mt-4 space-y-2">
             <InfoRow icon={Mail} label={customer.email} />
-            <InfoRow icon={Phone} label={customer.phone ? formatPhone(customer.phone) : "Telefone não cadastrado"} muted={!customer.phone} />
+            {editingPhone ? (
+              <div className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <input
+                  autoFocus
+                  value={phoneInput}
+                  onChange={e => setPhoneInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") updatePhoneMutation.mutate(phoneInput);
+                    if (e.key === "Escape") setEditingPhone(false);
+                  }}
+                  className="text-sm bg-background border border-border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring w-36"
+                  placeholder="+55 (11) 99999-9999"
+                />
+                <button onClick={() => updatePhoneMutation.mutate(phoneInput)} className="text-green-600 hover:text-green-700"><Check className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setEditingPhone(false)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className={`text-sm ${customer.phone ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
+                  {customer.phone ? formatPhone(customer.phone) : "Telefone não cadastrado"}
+                </span>
+                <button
+                  onClick={() => { setPhoneInput(customer.phone ?? ""); setEditingPhone(true); }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {customer.city && (
               <InfoRow
                 icon={MapPin}
