@@ -10,22 +10,32 @@ export const anthropic = new Anthropic({
 // ============================================================
 
 export async function generateCustomerInsights(
-  customer: CustomerWithRelations
+  customer: CustomerWithRelations,
+  segmentTopProducts?: string[]
 ): Promise<CustomerInsight[]> {
   const context = buildCustomerContext(customer);
+  const segmentContext = segmentTopProducts && segmentTopProducts.length > 0
+    ? `\nPRODUTOS MAIS COMPRADOS POR CLIENTES DO MESMO SEGMENTO (${customer.segment}):\n${segmentTopProducts.slice(0, 10).map((p, i) => `${i + 1}. ${p}`).join("\n")}`
+    : "";
 
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: `Você é um analista de CRM especializado em e-commerce de moda premium (beachwear).
-Analise os dados do cliente e gere insights acionáveis para os personal shoppers da Naked Swimwear.
-Retorne APENAS um JSON válido com a chave "insights" contendo um array de objetos com: type, title, description, confidence (0-1).
-Types disponíveis: opportunity, risk, action, info.
-Seja conciso e direto. Foque em ações práticas que aumentem vendas e retenção.`,
+    system: `Você é um analista de CRM especializado em e-commerce de moda premium (beachwear) para a Naked Swimwear.
+Gere 4-5 insights acionáveis para os personal shoppers, priorizando recomendações de produtos e oportunidades de venda.
+
+REGRAS OBRIGATÓRIAS:
+- Use APENAS os dados fornecidos. NUNCA invente datas, valores ou períodos.
+- "Recência" no RFM indica quando foi a última compra: 5=últimos 30 dias, 4=31-60 dias, 3=61-120 dias, 2=121-180 dias, 1=mais de 180 dias.
+- NÃO sugira reativação para clientes com Recência >= 3 (compraram nos últimos 120 dias).
+- Foque em: quais produtos recomendar com base no histórico + comportamento do segmento, qual o melhor momento para contato, oportunidades de upsell/cross-sell específicas.
+- Descreva os produtos pelo nome, não de forma genérica.
+
+Retorne APENAS JSON válido: { "insights": [{ "type": "opportunity"|"risk"|"action"|"info", "title": string, "description": string, "confidence": 0-1 }] }`,
     messages: [
       {
         role: "user",
-        content: `Analise este cliente e retorne apenas JSON:\n\n${context}`,
+        content: `Analise este cliente e retorne apenas JSON:\n\n${context}${segmentContext}`,
       },
     ],
   });

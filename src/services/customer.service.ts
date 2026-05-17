@@ -178,7 +178,31 @@ export async function refreshCustomerInsights(customerId: string): Promise<void>
 
   await recalculateCustomerRFM(customerId);
 
-  const insights = await generateCustomerInsights(customer);
+  // Busca top produtos do mesmo segmento (excluindo os que o cliente já comprou)
+  const customerProductTitles = new Set(
+    (customer.orders ?? []).flatMap(o => (o.lineItems ?? []).map(i => i.title.split(" - ")[0].trim()))
+  );
+
+  const segmentProducts = await db.$queryRaw<Array<{ title: string; total: bigint }>>`
+    SELECT
+      split_part(li.title, ' - ', 1) AS title,
+      SUM(li.quantity)::bigint        AS total
+    FROM line_items li
+    JOIN orders o ON o.id = li."orderId"
+    JOIN customers c ON c.id = o."customerId"
+    WHERE c.segment = ${customer.segment}::"CustomerSegment"
+      AND o."financialStatus" = 'PAID'
+    GROUP BY split_part(li.title, ' - ', 1)
+    ORDER BY total DESC
+    LIMIT 30
+  `;
+
+  const segmentTopProducts = segmentProducts
+    .map(p => p.title.trim())
+    .filter(t => t && !customerProductTitles.has(t))
+    .slice(0, 10);
+
+  const insights = await generateCustomerInsights(customer, segmentTopProducts);
 
   // Salva como recomendações do tipo "insight"
   await db.aiRecommendation.deleteMany({
