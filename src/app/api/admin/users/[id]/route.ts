@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { UserRole } from "@prisma/client";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -17,8 +18,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Body inválido" }, { status: 400 });
 
-  const data: { role?: string; active?: boolean } = {};
-  if (body.role !== undefined) data.role = body.role;
+  const data: { role?: UserRole; active?: boolean } = {};
+  if (body.role !== undefined) data.role = body.role as UserRole;
   if (body.active !== undefined) data.active = body.active;
 
   if (Object.keys(data).length === 0) {
