@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
 
     for (const co of checkouts) {
       try {
+        // Busca cliente por shopifyId ou email (fallback)
         const customer = co.customer_id
-          ? await db.customer.findFirst({
-              where: { shopifyId: String(co.customer_id) },
-            })
+          ? await db.customer.findFirst({ where: { shopifyId: String(co.customer_id) } })
+          : co.email
+          ? await db.customer.findFirst({ where: { email: co.email } })
           : null;
 
         await db.abandonedCart.upsert({
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest) {
             checkoutUrl: co.checkout_url || co.abandoned_checkout_url,
             lineItems: co.line_items as object,
             abandonedAt: new Date(co.updated_at),
-            customerId: customer?.id ?? null,
+            // Só atualiza customerId se encontrou — nunca sobrescreve com null
+            ...(customer ? { customerId: customer.id } : {}),
             updatedAt: new Date(),
           },
         });
