@@ -19,6 +19,8 @@ import {
   Pencil,
   Check,
   X,
+  MousePointerClick,
+  Eye,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { formatCurrency, formatDate, formatRelative, formatPhone, getInitials } from "@/lib/utils";
@@ -29,12 +31,26 @@ interface Props {
   customer: CustomerWithRelations;
 }
 
+interface EmailEngagement {
+  id: string;
+  campaignName: string | null;
+  subject: string | null;
+  sentAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+  bouncedAt: string | null;
+  openCount: number;
+  clickCount: number;
+}
+
 export function CustomerProfile({ customer: initial }: Props) {
   const [customer, setCustomer] = useState(initial);
   const [activeTab, setActiveTab] = useState<"timeline" | "orders" | "ai" | "tasks">("timeline");
   const [note, setNote] = useState("");
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState(customer.phone ?? "");
+  const [emailEngagements, setEmailEngagements] = useState<EmailEngagement[] | null>(null);
+  const [loadingEmails, setLoadingEmails] = useState(false);
 
   const updatePhoneMutation = useMutation({
     mutationFn: async (phone: string) => {
@@ -394,6 +410,83 @@ export function CustomerProfile({ customer: initial }: Props) {
                 ))}
               </div>
             )}
+
+            {/* Histórico de emails Omnisend */}
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5" />
+                  Emails Omnisend
+                </h3>
+                {emailEngagements === null && (
+                  <button
+                    onClick={async () => {
+                      setLoadingEmails(true);
+                      const res = await fetch(`/api/customers/${customer.id}/email-engagements`);
+                      if (res.ok) {
+                        const { data } = await res.json() as { data: EmailEngagement[] };
+                        setEmailEngagements(data);
+                      }
+                      setLoadingEmails(false);
+                    }}
+                    disabled={loadingEmails}
+                    className="text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    {loadingEmails ? "Carregando..." : "Carregar"}
+                  </button>
+                )}
+              </div>
+
+              {emailEngagements === null && !loadingEmails && (
+                <p className="text-xs text-muted-foreground/60 text-center py-3">
+                  Clique em &quot;Carregar&quot; para ver o histórico de emails.
+                </p>
+              )}
+
+              {emailEngagements !== null && emailEngagements.length === 0 && (
+                <p className="text-xs text-muted-foreground/60 text-center py-3">
+                  Nenhum email registrado ainda. Os próximos serão capturados automaticamente via webhook.
+                </p>
+              )}
+
+              {emailEngagements && emailEngagements.length > 0 && (
+                <div className="space-y-2">
+                  {emailEngagements.map((e) => (
+                    <div key={e.id} className="flex items-start justify-between gap-2 py-2 border-b border-border last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{e.subject ?? e.campaignName ?? "Campanha"}</p>
+                        {e.campaignName && e.subject && (
+                          <p className="text-[10px] text-muted-foreground truncate">{e.campaignName}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {e.sentAt ? formatRelative(e.sentAt) : "—"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {e.openedAt && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-blue-600">
+                            <Eye className="w-3 h-3" />
+                            {e.openCount > 1 ? e.openCount : ""}
+                          </span>
+                        )}
+                        {e.clickedAt && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-green-600">
+                            <MousePointerClick className="w-3 h-3" />
+                            {e.clickCount > 1 ? e.clickCount : ""}
+                          </span>
+                        )}
+                        {e.bouncedAt && (
+                          <span className="text-[10px] text-red-500">bounce</span>
+                        )}
+                        {!e.openedAt && !e.clickedAt && !e.bouncedAt && (
+                          <span className="text-[10px] text-muted-foreground/50">enviado</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

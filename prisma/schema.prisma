@@ -449,6 +449,7 @@ model EmailEngagement {
 
   customer Customer @relation(fields: [customerId], references: [id])
 
+  @@unique([customerId, campaignId])
   @@index([customerId])
   @@map("email_engagements")
 }

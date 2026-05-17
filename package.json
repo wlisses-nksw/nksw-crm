@@ -18,7 +18,8 @@
     "segment:update": "tsx scripts/update-segment-profiles.ts",
     "shopify:orders": "tsx scripts/import-shopify-orders.ts",
     "shopify:webhooks": "tsx scripts/register-webhooks.ts",
-    "carts:import": "tsx scripts/import-abandoned-carts.ts"
+    "carts:import": "tsx scripts/import-abandoned-carts.ts",
+    "omnisend:webhooks": "tsx scripts/register-omnisend-webhook.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
