@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import Anthropic from "@anthropic-ai/sdk";
 
 const PS_PREFIX = "PS |";
 const COOLDOWN_DAYS = 30;
@@ -70,11 +71,52 @@ export async function POST(req: NextRequest) {
   const forceNew = body?.forceNew === true;
   const targetUserId: string = body?.assignedToId ?? session.user.id;
   const dateParam: string | undefined = body?.date;
+  const promptText: string | undefined = body?.prompt;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
   const dueAtDate = dateParam ? new Date(dateParam) : new Date();
+
+  // Interpretar prompt via Claude se fornecido
+  interface PromptFilters {
+    segments?: string[];
+    minDaysSinceOrder?: number;
+    maxDaysSinceOrder?: number;
+    minTotalSpent?: number;
+    minRfmScore?: number;
+    states?: string[];
+  }
+  let promptFilters: PromptFilters = {};
+  if (promptText) {
+    try {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const msg = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 256,
+        messages: [{
+          role: "user",
+          content: `Você é um assistente de CRM. Interprete o seguinte pedido e retorne SOMENTE um JSON com os filtros de seleção de clientes, sem texto adicional.
+
+Pedido: "${promptText}"
+
+Campos disponíveis (todos opcionais):
+- segments: array com valores de CustomerSegment (VIP, ALTO_POTENCIAL, RECORRENTE, EM_RISCO, INATIVO, NOVO, PRIMEIRA_COMPRA)
+- minDaysSinceOrder: número mínimo de dias desde a última compra
+- maxDaysSinceOrder: número máximo de dias desde a última compra
+- minTotalSpent: valor mínimo gasto total (em reais)
+- minRfmScore: score RFM mínimo (1-12)
+- states: array de siglas de estados brasileiros (ex: ["SP", "RJ"])
+
+Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
+        }],
+      });
+      const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
+      promptFilters = JSON.parse(text.replace(/```json|```/g, "").trim());
+    } catch {
+      // Se falhar, ignora o prompt e usa filtros padrão
+    }
+  }
 
   if (!forceNew) {
     const existing = await db.task.count({
@@ -117,15 +159,21 @@ export async function POST(req: NextRequest) {
   ];
 
   const now = new Date();
+  // Permite sobrescrever range de dias via prompt
+  const winBackMaxDays = promptFilters.maxDaysSinceOrder ?? WIN_BACK_MAX_DAYS;
+  const winBackMinDays = promptFilters.minDaysSinceOrder ?? WIN_BACK_MIN_DAYS;
   const winBackFrom = new Date(now);
-  winBackFrom.setDate(winBackFrom.getDate() - WIN_BACK_MAX_DAYS);
+  winBackFrom.setDate(winBackFrom.getDate() - winBackMaxDays);
   const winBackTo = new Date(now);
-  winBackTo.setDate(winBackTo.getDate() - WIN_BACK_MIN_DAYS);
+  winBackTo.setDate(winBackTo.getDate() - winBackMinDays);
 
   const poolA = await db.customer.findMany({
     where: {
       phone: { not: null },
       lastOrderAt: { gte: winBackFrom, lte: winBackTo },
+      ...(promptFilters.segments?.length ? { segment: { in: promptFilters.segments as never[] } } : {}),
+      ...(promptFilters.minTotalSpent ? { totalSpent: { gte: promptFilters.minTotalSpent } } : {}),
+      ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
       AND: [
         {
           OR: [
@@ -160,7 +208,10 @@ export async function POST(req: NextRequest) {
   const poolB = await db.customer.findMany({
     where: {
       phone: { not: null },
-      rfmScore: { gte: RFM_THRESHOLD },
+      rfmScore: { gte: promptFilters.minRfmScore ?? RFM_THRESHOLD },
+      ...(promptFilters.segments?.length ? { segment: { in: promptFilters.segments as never[] } } : {}),
+      ...(promptFilters.minTotalSpent ? { totalSpent: { gte: promptFilters.minTotalSpent } } : {}),
+      ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
       AND: [
         {
           OR: [
@@ -217,14 +268,17 @@ export async function POST(req: NextRequest) {
   }, { status: 201 });
 }
 
-// DELETE — limpa tasks PS de hoje (admin only)
+// DELETE — limpa tasks PS de hoje (admin limpa qualquer PS; PS limpa só os próprios)
 export async function DELETE(req: NextRequest) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const assignedToId = req.nextUrl.searchParams.get("assignedToId");
+  const isAdmin = session.user.role === "ADMIN";
+  const assignedToIdParam = req.nextUrl.searchParams.get("assignedToId");
+
+  // PS só pode limpar os próprios
+  const assignedToId = isAdmin ? (assignedToIdParam ?? undefined) : session.user.id;
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 

@@ -65,6 +65,7 @@ export function PersonalShopperView() {
 
   const [selectedPsId, setSelectedPsId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [prompt, setPrompt] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -120,6 +121,7 @@ export function PersonalShopperView() {
           forceNew,
           assignedToId: isAdmin ? (selectedPsId || session?.user?.id) : session?.user?.id,
           date: selectedDate,
+          ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
         }),
       });
       const json = await res.json();
@@ -139,8 +141,7 @@ export function PersonalShopperView() {
   }, [qc, isAdmin, isReadOnly, selectedPsId, session?.user?.id]);
 
   const clearRecords = useCallback(async () => {
-    if (!isAdmin) return;
-    if (!confirm("Limpar todos os registros de hoje? Esta ação não pode ser desfeita.")) return;
+    if (!confirm("Limpar os registros de hoje? Esta ação não pode ser desfeita.")) return;
     setClearing(true);
     try {
       const params = selectedPsId ? `?assignedToId=${selectedPsId}` : "";
@@ -221,6 +222,21 @@ export function PersonalShopperView() {
             </Button>
           </div>
 
+          {/* Prompt de seleção */}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              Prompt de seleção IA{" "}
+              <span className="text-muted-foreground/60">(opcional — descreva o perfil do dia)</span>
+            </label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Ex: clientes VIP que não compram há 60 dias de SP e RJ, com gasto acima de R$500..."
+              rows={2}
+              className="w-full text-sm border border-border rounded-md px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder:text-muted-foreground/50"
+            />
+          </div>
+
           {/* Info pools */}
           {pools && tasks.length > 0 && (
             <div className="flex gap-4 pt-1">
@@ -285,6 +301,19 @@ export function PersonalShopperView() {
                 />
               </div>
             </div>
+            {/* Limpar registros — visível para todos (PS limpa os próprios, admin limpa qualquer) */}
+            {!isReadOnly && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearRecords}
+                disabled={clearing}
+                className="gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                {clearing ? "Limpando..." : "Limpar registros de hoje"}
+              </Button>
+            )}
 
             {!isReadOnly && (
               <Button variant="outline" size="sm" onClick={() => generateBatch(true)} disabled={generating} className="gap-2">
