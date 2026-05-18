@@ -48,6 +48,7 @@ interface EmailEngagement {
   bouncedAt: string | null;
   openCount: number;
   clickCount: number;
+  _aggregate?: { sent: number; openRate: number; clickRate: number };
 }
 
 export function CustomerProfile({ customer: initial }: Props) {
@@ -57,6 +58,7 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState(customer.phone ?? "");
   const [emailEngagements, setEmailEngagements] = useState<EmailEngagement[] | null>(null);
+  const [emailSource, setEmailSource] = useState<"webhook" | "aggregate" | null>(null);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
@@ -672,6 +674,11 @@ export function CustomerProfile({ customer: initial }: Props) {
                 <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5" />
                   Emails Omnisend
+                  {emailSource === "aggregate" && (
+                    <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                      stats da base
+                    </span>
+                  )}
                 </h3>
                 {emailEngagements === null && (
                   <button
@@ -679,8 +686,9 @@ export function CustomerProfile({ customer: initial }: Props) {
                       setLoadingEmails(true);
                       const res = await fetch(`/api/customers/${customer.id}/email-engagements`);
                       if (res.ok) {
-                        const { data } = await res.json() as { data: EmailEngagement[] };
-                        setEmailEngagements(data);
+                        const json = await res.json() as { data: EmailEngagement[]; source: "webhook" | "aggregate" };
+                        setEmailEngagements(json.data);
+                        setEmailSource(json.source);
                       }
                       setLoadingEmails(false);
                     }}
@@ -700,7 +708,7 @@ export function CustomerProfile({ customer: initial }: Props) {
 
               {emailEngagements !== null && emailEngagements.length === 0 && (
                 <p className="text-xs text-muted-foreground/60 text-center py-3">
-                  Nenhum email registrado ainda. Os próximos serão capturados automaticamente via webhook.
+                  Nenhuma campanha encontrada. Sincronize o Omnisend para ver as campanhas enviadas.
                 </p>
               )}
 
@@ -718,6 +726,7 @@ export function CustomerProfile({ customer: initial }: Props) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {/* Dados por-contato (webhook Pro) */}
                         {e.openedAt && (
                           <span className="flex items-center gap-0.5 text-[10px] text-blue-600">
                             <Eye className="w-3 h-3" />
@@ -733,7 +742,18 @@ export function CustomerProfile({ customer: initial }: Props) {
                         {e.bouncedAt && (
                           <span className="text-[10px] text-red-500">bounce</span>
                         )}
-                        {!e.openedAt && !e.clickedAt && !e.bouncedAt && (
+                        {/* Dados agregados (fallback sem Pro) */}
+                        {e._aggregate && (
+                          <span className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-0.5">
+                              <Eye className="w-3 h-3" />{e._aggregate.openRate}%
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <MousePointerClick className="w-3 h-3" />{e._aggregate.clickRate}%
+                            </span>
+                          </span>
+                        )}
+                        {!e.openedAt && !e.clickedAt && !e.bouncedAt && !e._aggregate && (
                           <span className="text-[10px] text-muted-foreground/50">enviado</span>
                         )}
                       </div>
