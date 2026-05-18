@@ -48,7 +48,7 @@ export default function ProdutosPage() {
                !row.cor.toLowerCase().includes(q)) return false;
       for (const [field, vals] of Object.entries(filters)) {
         if (!vals.size) continue;
-        const v = String((row as Record<string, unknown>)[field] ?? "");
+        const v = String((row as unknown as Record<string, unknown>)[field] ?? "");
         if (!vals.has(v)) return false;
       }
       return true;
@@ -86,7 +86,7 @@ export default function ProdutosPage() {
     const cols = ["curva", "cor", "tamanho", "codigo"] as const;
     const opts: Record<string, string[]> = {};
     for (const col of cols) {
-      opts[col] = [...new Set(data.map(r => String((r as Record<string, unknown>)[col] ?? "")))].sort();
+      opts[col] = [...new Set(data.map(r => String((r as unknown as Record<string, unknown>)[col] ?? "")))].sort();
     }
     return opts;
   }, [data]);
