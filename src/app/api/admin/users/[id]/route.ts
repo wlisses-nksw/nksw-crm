@@ -18,9 +18,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Body inválido" }, { status: 400 });
 
-  const data: { role?: UserRole; active?: boolean } = {};
+  const data: { role?: UserRole; active?: boolean; onVacation?: boolean } = {};
   if (body.role !== undefined) data.role = body.role as UserRole;
   if (body.active !== undefined) data.active = body.active;
+  if (body.onVacation !== undefined) data.onVacation = body.onVacation;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 });
@@ -29,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const user = await db.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, active: true },
+    select: { id: true, name: true, email: true, role: true, active: true, onVacation: true },
   });
 
   return NextResponse.json({ data: user });

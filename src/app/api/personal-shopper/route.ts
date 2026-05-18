@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
   todayStart.setHours(0, 0, 0, 0);
 
   const assignedToId = req.nextUrl.searchParams.get("assignedToId");
+  const dateParam = req.nextUrl.searchParams.get("date");
+  const filterDate = dateParam ? new Date(dateParam) : todayStart;
+  filterDate.setHours(0, 0, 0, 0);
+
   const effectiveAssignedToId =
     session.user.role === "ADMIN" || session.user.role === "SUPERVISOR"
       ? assignedToId ?? undefined
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
   const tasks = await db.task.findMany({
     where: {
       title: { startsWith: PS_PREFIX },
-      createdAt: { gte: todayStart },
+      createdAt: { gte: filterDate },
       ...(effectiveAssignedToId ? { assignedToId: effectiveAssignedToId } : {}),
     },
     include: {
@@ -65,9 +69,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const forceNew = body?.forceNew === true;
   const targetUserId: string = body?.assignedToId ?? session.user.id;
+  const dateParam: string | undefined = body?.date;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+
+  const dueAtDate = dateParam ? new Date(dateParam) : new Date();
 
   if (!forceNew) {
     const existing = await db.task.count({
@@ -91,9 +98,23 @@ export async function POST(req: NextRequest) {
     distinct: ["customerId"],
   });
 
-  const excludeIds = recentlyContacted
-    .map((t) => t.customerId)
-    .filter(Boolean) as string[];
+  // Clientes já em lote ativo de OUTRO PS hoje
+  const todayBatchOthers = await db.task.findMany({
+    where: {
+      title: { startsWith: PS_PREFIX },
+      createdAt: { gte: todayStart },
+      assignedToId: { not: targetUserId },
+      customerId: { not: null },
+    },
+    select: { customerId: true },
+    distinct: ["customerId"],
+  });
+  const todayOtherIds = todayBatchOthers.map((t) => t.customerId).filter(Boolean) as string[];
+
+  const excludeIds = [
+    ...recentlyContacted.map((t) => t.customerId).filter(Boolean) as string[],
+    ...todayOtherIds,
+  ];
 
   const now = new Date();
   const winBackFrom = new Date(now);
@@ -105,6 +126,14 @@ export async function POST(req: NextRequest) {
     where: {
       phone: { not: null },
       lastOrderAt: { gte: winBackFrom, lte: winBackTo },
+      AND: [
+        {
+          OR: [
+            { fidelized: false },
+            { assignedShopperId: targetUserId },
+          ],
+        },
+      ],
       id: excludeIds.length > 0 ? { notIn: excludeIds } : undefined,
     },
     orderBy: { totalSpent: "desc" },
@@ -113,12 +142,33 @@ export async function POST(req: NextRequest) {
   });
 
   const poolAIds = poolA.map((c) => c.id);
-  const poolBExclude = [...excludeIds, ...poolAIds];
+
+  // Inclui clientes fidelizados ao targetUserId com lastOrderAt no range
+  const fidelizedToTarget = await db.customer.findMany({
+    where: {
+      fidelized: true,
+      assignedShopperId: targetUserId,
+      lastOrderAt: { gte: winBackFrom, lte: winBackTo },
+      id: { notIn: [...excludeIds, ...poolAIds] },
+    },
+    select: { id: true, firstName: true, lastName: true, segment: true, rfmScore: true },
+  });
+
+  const allPoolAIds = [...poolAIds, ...fidelizedToTarget.map((c) => c.id)];
+  const poolBExclude = [...excludeIds, ...allPoolAIds];
 
   const poolB = await db.customer.findMany({
     where: {
       phone: { not: null },
       rfmScore: { gte: RFM_THRESHOLD },
+      AND: [
+        {
+          OR: [
+            { fidelized: false },
+            { assignedShopperId: targetUserId },
+          ],
+        },
+      ],
       id: poolBExclude.length > 0 ? { notIn: poolBExclude } : undefined,
     },
     orderBy: { rfmScore: "desc" },
@@ -134,6 +184,7 @@ export async function POST(req: NextRequest) {
 
   const allCustomers = [
     ...poolA.map((c) => ({ ...c, pool: "winback" as const })),
+    ...fidelizedToTarget.map((c) => ({ ...c, pool: "winback" as const })),
     ...poolB.map((c) => ({ ...c, pool: "rfm" as const })),
   ];
 
@@ -153,7 +204,7 @@ export async function POST(req: NextRequest) {
           customerId: c.id,
           assignedToId: targetUserId,
           createdById: session.user.id,
-          dueAt: new Date(),
+          dueAt: dueAtDate,
         },
       })
     )

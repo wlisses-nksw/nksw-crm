@@ -25,6 +25,7 @@ interface AdminUser {
   email: string;
   role: string;
   active: boolean;
+  onVacation?: boolean;
   createdAt: string;
 }
 
@@ -317,6 +318,21 @@ function AdminTab({ currentUserId }: { currentUserId?: string }) {
     }
   }
 
+  async function handleToggleVacation(userId: string, onVacation: boolean) {
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ onVacation: !onVacation }),
+    });
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, onVacation: !onVacation } : u));
+      toast.success(!onVacation ? "Férias ativadas" : "Férias desativadas");
+    } else {
+      const data = await res.json();
+      toast.error(data.error ?? "Erro ao atualizar");
+    }
+  }
+
   async function handleToggleActive(userId: string, active: boolean) {
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PATCH",
@@ -428,6 +444,7 @@ function AdminTab({ currentUserId }: { currentUserId?: string }) {
                   <th className="pb-2 font-medium">Email</th>
                   <th className="pb-2 font-medium">Perfil</th>
                   <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium">Férias</th>
                   <th className="pb-2 font-medium">Ações</th>
                 </tr>
               </thead>
@@ -448,6 +465,21 @@ function AdminTab({ currentUserId }: { currentUserId?: string }) {
                           {user.active ? "Ativo" : "Inativo"}
                         </span>
                       </td>
+                      <td className="py-2.5 pr-3">
+                        {user.role === "PERSONAL_SHOPPER" ? (
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                            !user.active
+                              ? "bg-gray-100 text-gray-500"
+                              : user.onVacation
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-green-100 text-green-700"
+                          }`}>
+                            {!user.active ? "Inativo" : user.onVacation ? "Férias" : "Ativo"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        )}
+                      </td>
                       <td className="py-2.5">
                         <div className="flex items-center gap-2">
                           {!isSelf && (
@@ -461,6 +493,16 @@ function AdminTab({ currentUserId }: { currentUserId?: string }) {
                                   <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                                 ))}
                               </select>
+                              {user.role === "PERSONAL_SHOPPER" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className={`h-7 text-xs px-2 ${user.onVacation ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50" : ""}`}
+                                  onClick={() => handleToggleVacation(user.id, user.onVacation ?? false)}
+                                >
+                                  {user.onVacation ? "Voltar de férias" : "Férias"}
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"

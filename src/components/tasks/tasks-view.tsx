@@ -44,13 +44,15 @@ const PRIORITY_ICON: Record<TaskPriority, React.ReactNode> = {
 
 export function TasksView() {
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [dateFilter, setDateFilter] = useState<string>("");
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<{ data: Task[]; total: number }>({
-    queryKey: ["tasks", statusFilter],
+    queryKey: ["tasks", statusFilter, dateFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
+      if (dateFilter) params.set("dueDate", dateFilter);
       const res = await fetch(`/api/tasks?${params}`);
       return res.json();
     },
@@ -77,20 +79,39 @@ export function TasksView() {
   return (
     <div className="space-y-4">
       {/* Filtros */}
-      <div className="flex gap-1.5">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setStatusFilter(f.value)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              statusFilter === f.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1.5">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                statusFilter === f.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="h-7 text-xs border border-input bg-background rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter("")}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Lista */}

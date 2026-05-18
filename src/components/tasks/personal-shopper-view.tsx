@@ -64,6 +64,7 @@ export function PersonalShopperView() {
   const isReadOnly = isSupervisor;
 
   const [selectedPsId, setSelectedPsId] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [generating, setGenerating] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -118,6 +119,7 @@ export function PersonalShopperView() {
         body: JSON.stringify({
           forceNew,
           assignedToId: isAdmin ? (selectedPsId || session?.user?.id) : session?.user?.id,
+          date: selectedDate,
         }),
       });
       const json = await res.json();
@@ -182,6 +184,17 @@ export function PersonalShopperView() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Data dos leads */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Data dos leads</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-8 text-sm border border-border rounded-md px-2 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
 
             {/* Gerar leads */}

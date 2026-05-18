@@ -17,6 +17,7 @@ export async function GET() {
       email: true,
       role: true,
       active: true,
+      onVacation: true,
       createdAt: true,
     },
     orderBy: { createdAt: "asc" },

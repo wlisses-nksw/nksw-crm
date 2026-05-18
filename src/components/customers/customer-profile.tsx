@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ShoppingBag,
@@ -24,11 +25,14 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  UserCheck,
+  UserMinus,
 } from "lucide-react";
 import { ScoreBadge } from "@/components/shared/score-badge";
 import { formatCurrency, formatDate, formatRelative, formatPhone, getInitials } from "@/lib/utils";
 import type { CustomerWithRelations } from "@/types";
 import { Button } from "@/components/ui/button";
+import { ScheduleTaskModal } from "@/components/tasks/schedule-task-modal";
 
 interface Props {
   customer: CustomerWithRelations;
@@ -56,6 +60,12 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [selectedTransferShopperId, setSelectedTransferShopperId] = useState("");
+
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+  const isPS = session?.user?.role === "PERSONAL_SHOPPER";
 
   const updatePhoneMutation = useMutation({
     mutationFn: async (phone: string) => {
@@ -76,6 +86,40 @@ export function CustomerProfile({ customer: initial }: Props) {
   });
 
   const queryClient = useQueryClient();
+
+  // Lista de PS para o admin transferir
+  const { data: shoppersData } = useQuery<{ data: { id: string; name: string | null; email: string }[] }>({
+    queryKey: ["shoppers"],
+    queryFn: () => fetch("/api/users/shoppers").then((r) => r.json()),
+    enabled: isAdmin,
+  });
+  const shoppers = shoppersData?.data ?? [];
+
+  const assignShopperMutation = useMutation({
+    mutationFn: async (payload: { shopperId: string | null; fidelized?: boolean }) => {
+      const res = await fetch(`/api/customers/${customer.id}/assign-shopper`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? "Erro");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setCustomer((c) => ({
+        ...c,
+        assignedShopperId: data.data.assignedShopperId,
+        assignedShopperAt: data.data.assignedShopperAt,
+        fidelized: data.data.fidelized,
+        assignedShopper: data.data.assignedShopper,
+      }));
+      toast.success("Personal Shopper atualizado");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -356,17 +400,146 @@ export function CustomerProfile({ customer: initial }: Props) {
         {/* Personal Shopper */}
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="text-xs font-medium text-muted-foreground mb-3">Personal Shopper</h3>
+
           {customer.assignedShopper ? (
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <span className="text-primary text-xs font-semibold">
-                  {customer.assignedShopper.name?.charAt(0) ?? "?"}
-                </span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-primary text-xs font-semibold">
+                    {customer.assignedShopper.name?.charAt(0) ?? "?"}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{customer.assignedShopper.name}</p>
+                  {customer.assignedShopperAt && (
+                    <p className="text-[10px] text-muted-foreground">
+                      desde {formatDate(customer.assignedShopperAt)}
+                    </p>
+                  )}
+                </div>
+                {(customer as { fidelized?: boolean }).fidelized && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    Fidelizado
+                  </span>
+                )}
               </div>
-              <p className="text-sm font-medium">{customer.assignedShopper.name}</p>
+
+              {/* PS logado: fidelizar para si / liberar */}
+              {isPS && session?.user?.id && (
+                <div className="flex gap-2 mt-2">
+                  {customer.assignedShopperId === session.user.id && (customer as { fidelized?: boolean }).fidelized ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                      disabled={assignShopperMutation.isPending}
+                      onClick={() => assignShopperMutation.mutate({ shopperId: null })}
+                    >
+                      <UserMinus className="w-3 h-3" />
+                      Liberar cliente
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5"
+                      disabled={assignShopperMutation.isPending}
+                      onClick={() => assignShopperMutation.mutate({ shopperId: session.user.id, fidelized: true })}
+                    >
+                      <UserCheck className="w-3 h-3" />
+                      Fidelizar para mim
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Admin: transferir */}
+              {isAdmin && (
+                <div className="flex gap-2 mt-2 items-center">
+                  <select
+                    value={selectedTransferShopperId}
+                    onChange={(e) => setSelectedTransferShopperId(e.target.value)}
+                    className="flex-1 h-7 text-xs border border-input bg-background rounded px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— Selecionar PS —</option>
+                    {shoppers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name ?? s.email}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs shrink-0"
+                    disabled={!selectedTransferShopperId || assignShopperMutation.isPending}
+                    onClick={() => {
+                      if (selectedTransferShopperId) {
+                        assignShopperMutation.mutate({ shopperId: selectedTransferShopperId });
+                        setSelectedTransferShopperId("");
+                      }
+                    }}
+                  >
+                    Transferir
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-red-500 hover:text-red-600 shrink-0"
+                    disabled={assignShopperMutation.isPending}
+                    onClick={() => assignShopperMutation.mutate({ shopperId: null })}
+                  >
+                    <UserMinus className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">Não atribuído</p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Não atribuído</p>
+
+              {/* PS: fidelizar para si */}
+              {isPS && session?.user?.id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  disabled={assignShopperMutation.isPending}
+                  onClick={() => assignShopperMutation.mutate({ shopperId: session.user.id, fidelized: true })}
+                >
+                  <UserCheck className="w-3 h-3" />
+                  Fidelizar para mim
+                </Button>
+              )}
+
+              {/* Admin: atribuir */}
+              {isAdmin && (
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={selectedTransferShopperId}
+                    onChange={(e) => setSelectedTransferShopperId(e.target.value)}
+                    className="flex-1 h-7 text-xs border border-input bg-background rounded px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— Selecionar PS —</option>
+                    {shoppers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name ?? s.email}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs shrink-0"
+                    disabled={!selectedTransferShopperId || assignShopperMutation.isPending}
+                    onClick={() => {
+                      if (selectedTransferShopperId) {
+                        assignShopperMutation.mutate({ shopperId: selectedTransferShopperId });
+                        setSelectedTransferShopperId("");
+                      }
+                    }}
+                  >
+                    Atribuir
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -625,9 +798,9 @@ export function CustomerProfile({ customer: initial }: Props) {
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold">Tarefas</h3>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" onClick={() => setScheduleModalOpen(true)}>
                 <Plus className="w-3.5 h-3.5 mr-1" />
-                Nova
+                Agendar tarefa
               </Button>
             </div>
             {customer.tasks && customer.tasks.length > 0 ? (
@@ -733,6 +906,15 @@ export function CustomerProfile({ customer: initial }: Props) {
           </div>
         )}
       </div>
+
+      {/* Modal de agendamento */}
+      <ScheduleTaskModal
+        customerId={customer.id}
+        customerName={`${customer.firstName} ${customer.lastName}`}
+        open={scheduleModalOpen}
+        onClose={() => setScheduleModalOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["customer", customer.id] })}
+      />
     </div>
   );
 }

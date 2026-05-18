@@ -22,13 +22,20 @@ export async function GET(req: NextRequest) {
   const customerId = sp.get("customerId");
   const assignedToId = sp.get("assignedToId");
   const status = sp.get("status") as TaskStatus | null;
+  const dueDate = sp.get("dueDate");
   const page = parseInt(sp.get("page") ?? "1");
 
-  const where = {
+  const where: Record<string, unknown> = {
     ...(customerId && { customerId }),
     ...(assignedToId && { assignedToId }),
     ...(status ? { status } : { status: { not: "CANCELADA" as TaskStatus } }),
   };
+
+  if (dueDate) {
+    const start = new Date(dueDate + "T00:00:00");
+    const end = new Date(dueDate + "T23:59:59");
+    where.dueAt = { gte: start, lte: end };
+  }
 
   const [total, tasks] = await Promise.all([
     db.task.count({ where }),

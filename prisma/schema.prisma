@@ -27,9 +27,10 @@ model User {
   image         String?
   passwordHash  String?
 
-  role      UserRole @default(PERSONAL_SHOPPER)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  role       UserRole @default(PERSONAL_SHOPPER)
+  active     Boolean  @default(true)
+  onVacation Boolean  @default(false)
+  createdAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
 
@@ -149,7 +150,9 @@ model Customer {
 
   // Personal Shopper responsável
   assignedShopperId String?
-  assignedShopper   User?   @relation("AssignedShopper", fields: [assignedShopperId], references: [id])
+  assignedShopper   User?     @relation("AssignedShopper", fields: [assignedShopperId], references: [id])
+  assignedShopperAt DateTime?
+  fidelized         Boolean   @default(false)
 
   // Controle
   active    Boolean  @default(true)
