@@ -54,6 +54,46 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: tasks, total, page });
 }
 
+// PATCH bulk — marca várias tasks como CONCLUIDA
+export async function PATCH(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const { ids } = await req.json();
+  if (!Array.isArray(ids) || ids.length === 0)
+    return NextResponse.json({ error: "ids inválidos" }, { status: 400 });
+
+  // PS só pode concluir as próprias; Admin/Supervisor podem qualquer
+  const where =
+    session.user.role === "PERSONAL_SHOPPER"
+      ? { id: { in: ids }, assignedToId: session.user.id }
+      : { id: { in: ids } };
+
+  const { count } = await db.task.updateMany({
+    where,
+    data: { status: "CONCLUIDA", completedAt: new Date() },
+  });
+
+  return NextResponse.json({ ok: true, updated: count });
+}
+
+// DELETE bulk — remove tasks (Admin/Supervisor)
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const role = session.user.role;
+  if (role === "PERSONAL_SHOPPER")
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+
+  const { ids } = await req.json().catch(() => ({ ids: [] }));
+  if (!Array.isArray(ids) || ids.length === 0)
+    return NextResponse.json({ error: "ids inválidos" }, { status: 400 });
+
+  const { count } = await db.task.deleteMany({ where: { id: { in: ids } } });
+  return NextResponse.json({ ok: true, deleted: count });
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
