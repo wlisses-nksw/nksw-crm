@@ -61,7 +61,9 @@ export function PersonalShopperView() {
   const qc = useQueryClient();
   const isAdmin = session?.user?.role === "ADMIN";
   const isSupervisor = session?.user?.role === "SUPERVISOR";
+  const isPS = session?.user?.role === "PERSONAL_SHOPPER";
   const isReadOnly = isSupervisor;
+  const canClear = isAdmin || isSupervisor;
 
   const [selectedPsId, setSelectedPsId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -209,7 +211,7 @@ export function PersonalShopperView() {
               {generating ? "Gerando..." : "Gerar leads diários"}
             </Button>
 
-            {/* Limpar registros */}
+            {/* Limpar registros — no painel admin */}
             <Button
               size="sm"
               variant="outline"
@@ -218,7 +220,7 @@ export function PersonalShopperView() {
               className="gap-1.5 h-8 text-red-600 border-red-200 hover:bg-red-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {clearing ? "Limpando..." : "Limpar registros de hoje"}
+              {clearing ? "Limpando..." : "Limpar registros"}
             </Button>
           </div>
 
@@ -301,8 +303,8 @@ export function PersonalShopperView() {
                 />
               </div>
             </div>
-            {/* Limpar registros — visível para todos (PS limpa os próprios, admin limpa qualquer) */}
-            {!isReadOnly && (
+            {/* Limpar registros — apenas Admin e Supervisor */}
+            {canClear && (
               <Button
                 variant="ghost"
                 size="sm"

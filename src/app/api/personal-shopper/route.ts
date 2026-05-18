@@ -268,16 +268,21 @@ Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
   }, { status: 201 });
 }
 
-// DELETE — limpa tasks PS de hoje (admin limpa qualquer PS; PS limpa só os próprios)
+// DELETE — limpa tasks PS de hoje (ADMIN e SUPERVISOR podem limpar; PERSONAL_SHOPPER não pode)
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const isAdmin = session.user.role === "ADMIN";
+  const role = session.user.role;
+  if (role === "PERSONAL_SHOPPER") {
+    return NextResponse.json({ error: "Sem permissão para limpar registros" }, { status: 403 });
+  }
+
+  const isAdmin = role === "ADMIN";
   const assignedToIdParam = req.nextUrl.searchParams.get("assignedToId");
 
-  // PS só pode limpar os próprios
-  const assignedToId = isAdmin ? (assignedToIdParam ?? undefined) : session.user.id;
+  // Supervisor pode limpar qualquer PS (igual ao admin)
+  const assignedToId = (isAdmin || role === "SUPERVISOR") ? (assignedToIdParam ?? undefined) : undefined;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
