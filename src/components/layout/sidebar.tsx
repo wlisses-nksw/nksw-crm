@@ -13,6 +13,7 @@ import {
   LogOut,
   ShoppingBag,
   ShoppingCart,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/carrinhos", label: "Carrinhos", icon: ShoppingCart, badge: true },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
+  { href: "/produtos", label: "Produtos", icon: Package },
 ];
 
 const BOTTOM_NAV = [
