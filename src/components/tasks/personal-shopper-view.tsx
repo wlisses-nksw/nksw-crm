@@ -75,7 +75,7 @@ export function PersonalShopperView() {
   const { data: usersData } = useQuery<{ data: PSUser[] }>({
     queryKey: ["ps-users"],
     queryFn: () => fetch("/api/admin/users").then((r) => r.json()),
-    enabled: isAdmin,
+    enabled: isAdmin || isSupervisor,
   });
   const psUsers = (usersData?.data ?? []).filter(
     (u) => u.active && u.role === "PERSONAL_SHOPPER"
@@ -113,7 +113,7 @@ export function PersonalShopperView() {
   });
 
   const generateBatch = useCallback(async (forceNew = false) => {
-    if (!isAdmin && isReadOnly) return;
+    if (isPS) return;
     setGenerating(true);
     try {
       const res = await fetch("/api/personal-shopper", {
@@ -121,7 +121,7 @@ export function PersonalShopperView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           forceNew,
-          assignedToId: isAdmin ? (selectedPsId || session?.user?.id) : session?.user?.id,
+          assignedToId: (isAdmin || isSupervisor) ? (selectedPsId || session?.user?.id) : session?.user?.id,
           date: selectedDate,
           ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
         }),
@@ -167,8 +167,8 @@ export function PersonalShopperView() {
 
   return (
     <div className="space-y-4">
-      {/* Painel admin */}
-      {isAdmin && (
+      {/* Painel admin/supervisor */}
+      {(isAdmin || isSupervisor) && (
         <div className="bg-white border border-border rounded-xl p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Painel Admin</p>
           <div className="flex items-end gap-3 flex-wrap">
@@ -253,21 +253,6 @@ export function PersonalShopperView() {
         </div>
       )}
 
-      {/* Supervisor: seletor de visualização (read-only) */}
-      {isSupervisor && (
-        <div className="bg-muted/40 border border-border rounded-xl p-4 flex items-center gap-3">
-          <p className="text-xs text-muted-foreground">Visualizando:</p>
-          <select
-            value={selectedPsId}
-            onChange={(e) => setSelectedPsId(e.target.value)}
-            className="h-8 text-sm border border-border rounded-md px-2 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-            disabled
-          >
-            <option value="">Todos os personal shoppers</option>
-          </select>
-          <span className="text-xs text-muted-foreground italic">Modo leitura</span>
-        </div>
-      )}
 
       {/* Sem lote */}
       {tasks.length === 0 && (
