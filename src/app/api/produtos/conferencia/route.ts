@@ -12,7 +12,7 @@ async function getShopifyInventory(): Promise<Record<string, number>> {
   let url: string | null = `${SHOPIFY_BASE}/products.json?limit=250&fields=variants&status=active`;
 
   while (url) {
-    const res = await fetch(url, { headers: SHOPIFY_HEADERS });
+    const res: Response = await fetch(url, { headers: SHOPIFY_HEADERS });
     if (!res.ok) throw new Error(`Shopify ${res.status}`);
     const data = await res.json() as { products: { variants: { id: number; inventory_quantity: number }[] }[] };
 
@@ -22,8 +22,8 @@ async function getShopifyInventory(): Promise<Record<string, number>> {
       }
     }
 
-    const link = res.headers.get("link") ?? "";
-    const next = link.match(/<([^>]+)>;\s*rel="next"/);
+    const link: string = res.headers.get("link") ?? "";
+    const next: RegExpMatchArray | null = link.match(/<([^>]+)>;\s*rel="next"/);
     url = next ? next[1] : null;
   }
 
