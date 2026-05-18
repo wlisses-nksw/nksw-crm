@@ -10,17 +10,24 @@ const WIN_BACK_MIN_DAYS = 90;
 const WIN_BACK_MAX_DAYS = 365;
 const RFM_THRESHOLD = 6;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  const assignedToId = req.nextUrl.searchParams.get("assignedToId");
+  const effectiveAssignedToId =
+    session.user.role === "ADMIN" || session.user.role === "SUPERVISOR"
+      ? assignedToId ?? undefined
+      : session.user.id;
+
   const tasks = await db.task.findMany({
     where: {
       title: { startsWith: PS_PREFIX },
       createdAt: { gte: todayStart },
+      ...(effectiveAssignedToId ? { assignedToId: effectiveAssignedToId } : {}),
     },
     include: {
       customer: {
@@ -57,13 +64,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const forceNew = body?.forceNew === true;
+  const targetUserId: string = body?.assignedToId ?? session.user.id;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
   if (!forceNew) {
     const existing = await db.task.count({
-      where: { title: { startsWith: PS_PREFIX }, createdAt: { gte: todayStart } },
+      where: { title: { startsWith: PS_PREFIX }, createdAt: { gte: todayStart }, assignedToId: targetUserId },
     });
     if (existing > 0) {
       return NextResponse.json({ error: "Lote já gerado hoje. Use forceNew=true para carregar mais." }, { status: 409 });
@@ -143,7 +151,7 @@ export async function POST(req: NextRequest) {
           status: "PENDENTE",
           priority: segmentPriority(c.segment) as never,
           customerId: c.id,
-          assignedToId: session.user.id,
+          assignedToId: targetUserId,
           createdById: session.user.id,
           dueAt: new Date(),
         },
@@ -156,4 +164,26 @@ export async function POST(req: NextRequest) {
     generated: tasks.length,
     pools: { winback: poolA.length, rfm: poolB.length },
   }, { status: 201 });
+}
+
+// DELETE — limpa tasks PS de hoje (admin only)
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session || session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const assignedToId = req.nextUrl.searchParams.get("assignedToId");
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { count } = await db.task.deleteMany({
+    where: {
+      title: { startsWith: PS_PREFIX },
+      createdAt: { gte: todayStart },
+      ...(assignedToId ? { assignedToId } : {}),
+    },
+  });
+
+  return NextResponse.json({ ok: true, deleted: count });
 }
