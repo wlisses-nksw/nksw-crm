@@ -458,6 +458,37 @@ model EmailEngagement {
 }
 
 // ============================================================
+// OMNISEND CAMPAIGNS (stats agregados — sem Pro)
+// ============================================================
+
+model OmnisendCampaign {
+  id           String  @id @default(cuid())
+  campaignID   String  @unique  // ID Omnisend
+  name         String
+  subject      String?
+  status       String  // draft | sent | scheduled
+  type         String  @default("email")
+
+  // Stats agregados
+  sent         Int @default(0)
+  opened       Int @default(0)
+  clicked      Int @default(0)
+  bounced      Int @default(0)
+  unsubscribed Int @default(0)
+  complained   Int @default(0)
+
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  syncedAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([startDate])
+  @@map("omnisend_campaigns")
+}
+
+// ============================================================
 // TAREFAS
 // ============================================================
 
