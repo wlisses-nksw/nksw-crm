@@ -254,11 +254,63 @@ async function setIntegrationStatus(
 // ============================================================
 
 export async function processOrderWebhook(payload: ShopifyOrder): Promise<void> {
-  if (!payload.customer?.id) return;
+  // 1. Tenta achar por shopifyId
+  let customer = payload.customer?.id
+    ? await db.customer.findFirst({
+        where: { shopifyId: String(payload.customer.id) },
+      })
+    : null;
 
-  const customer = await db.customer.findFirst({
-    where: { shopifyId: String(payload.customer.id) },
-  });
+  // 2. Se não achou, tenta por email
+  if (!customer) {
+    const email = (payload.email ?? payload.contact_email)?.toLowerCase().trim() ?? null;
+    if (email) {
+      customer = await db.customer.findFirst({ where: { email } });
+
+      // 3. Se achou por email e temos o shopifyId, atualiza
+      if (customer && payload.customer?.id) {
+        await db.customer.update({
+          where: { id: customer.id },
+          data: { shopifyId: String(payload.customer.id) },
+        });
+      }
+    }
+  }
+
+  // 4. Se ainda não achou e temos dados do cliente no payload, faz upsert
+  if (!customer && payload.customer?.id) {
+    const c = payload.customer;
+    const email = (c.email ?? payload.email ?? payload.contact_email ?? "").toLowerCase().trim();
+    if (email) {
+      customer = await db.customer.upsert({
+        where: { shopifyId: String(c.id) },
+        create: {
+          shopifyId: String(c.id),
+          email,
+          firstName: c.first_name ?? "",
+          lastName: c.last_name ?? "",
+          phone: c.phone ?? null,
+          totalSpent: parseFloat(c.total_spent ?? "0"),
+          ordersCount: c.orders_count ?? 0,
+          shopifyTags: c.tags ? c.tags.split(",").map((t) => t.trim()) : [],
+          acceptsMarketing: c.accepts_marketing ?? false,
+        },
+        update: {
+          email,
+          firstName: c.first_name ?? "",
+          lastName: c.last_name ?? "",
+          phone: c.phone ?? null,
+          totalSpent: parseFloat(c.total_spent ?? "0"),
+          ordersCount: c.orders_count ?? 0,
+          shopifyTags: c.tags ? c.tags.split(",").map((t) => t.trim()) : [],
+          acceptsMarketing: c.accepts_marketing ?? false,
+          updatedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  // 5. Se mesmo assim não achou, descarta
   if (!customer) return;
 
   await syncOrders([payload], () => {});

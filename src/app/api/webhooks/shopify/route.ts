@@ -119,6 +119,9 @@ export async function POST(req: NextRequest) {
           data: { recoveredAt: new Date() },
         });
       }
+
+      // Persiste o pedido como em orders/paid
+      await processOrderWebhook(payload as ShopifyOrder);
       break;
     }
   }

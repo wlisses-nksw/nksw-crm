@@ -155,11 +155,24 @@ export interface ShopifyAddress {
   address1: string | null;
 }
 
+export interface ShopifyOrderCustomer {
+  id: number;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  total_spent: string;
+  orders_count: number;
+  tags: string;
+  accepts_marketing: boolean;
+}
+
 export interface ShopifyOrder {
   id: number;
   order_number: number;
   email: string | null;
-  customer: { id: number } | null;
+  contact_email: string | null;
+  customer: ShopifyOrderCustomer | null;
   financial_status: string;
   fulfillment_status: string | null;
   total_price: string;
