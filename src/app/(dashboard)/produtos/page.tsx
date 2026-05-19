@@ -441,7 +441,7 @@ export default function ProdutosPage() {
                                     :                     String(row.diff);
                       return (
                         <tr
-                          key={row.variante}
+                          key={`${row.variante}-${row.codigo}-${row.tamanho}-${row.cor}`}
                           className={`hover:bg-accent/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-gray-50/60"}`}
                         >
                           <td className="px-3 py-2 font-mono text-muted-foreground text-[11px]">{row.codigo || "—"}</td>
