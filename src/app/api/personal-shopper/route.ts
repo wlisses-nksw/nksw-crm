@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
     segments?: string[];
     minDaysSinceOrder?: number;
     maxDaysSinceOrder?: number;
+    excludeOrdersAfter?: string; // ISO date — exclui quem comprou APÓS essa data (ex: "2026-05-01")
     minTotalSpent?: number;
     minRfmScore?: number;
     states?: string[];
@@ -90,25 +91,32 @@ export async function POST(req: NextRequest) {
   let promptFilters: PromptFilters = {};
   if (promptText) {
     try {
+      const today = new Date().toISOString().split("T")[0];
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const msg = await anthropic.messages.create({
         model: "claude-haiku-4-5",
-        max_tokens: 256,
+        max_tokens: 512,
         messages: [{
           role: "user",
-          content: `Você é um assistente de CRM. Interprete o seguinte pedido e retorne SOMENTE um JSON com os filtros de seleção de clientes, sem texto adicional.
+          content: `Você é um assistente de CRM. Hoje é ${today}. Interprete o pedido abaixo e retorne SOMENTE um JSON com os filtros de seleção de clientes, sem texto adicional.
 
 Pedido: "${promptText}"
 
 Campos disponíveis (todos opcionais):
 - segments: array com valores de CustomerSegment (VIP, ALTO_POTENCIAL, RECORRENTE, EM_RISCO, INATIVO, NOVO, PRIMEIRA_COMPRA)
-- minDaysSinceOrder: número mínimo de dias desde a última compra
+- minDaysSinceOrder: número mínimo de dias desde a última compra (ex: "não compra há mais de 90 dias" → 90)
 - maxDaysSinceOrder: número máximo de dias desde a última compra
-- minTotalSpent: valor mínimo gasto total (em reais)
-- minRfmScore: score RFM mínimo (1-12)
+- excludeOrdersAfter: data ISO "YYYY-MM-DD" — exclui quem fez QUALQUER compra após essa data. Use para pedidos como "retire quem comprou em maio", "retire quem comprou este mês", "excluir compras de maio de 2026". Para "maio de 2026" use "2026-05-01". Para "este mês" calcule o primeiro dia do mês corrente.
+- minTotalSpent: valor mínimo gasto total em reais
+- minRfmScore: score RFM mínimo (1-12). "bom potencial" = 6, "alto RFM" = 8
 - states: array de siglas de estados brasileiros (ex: ["SP", "RJ"])
 
-Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
+Regras importantes:
+- "retire quem comprou em [mês]" ou "excluir compras de [mês]" → use excludeOrdersAfter com o primeiro dia desse mês
+- "não compra há mais de X dias" → minDaysSinceOrder: X
+- Não invente campos. Retorne apenas o JSON.
+
+Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore":6}`
         }],
       });
       const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
@@ -167,13 +175,33 @@ Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
   const winBackTo = new Date(now);
   winBackTo.setDate(winBackTo.getDate() - winBackMinDays);
 
+  // Se o prompt pedir para excluir quem comprou após determinada data,
+  // o teto do lastOrderAt é o menor entre winBackTo e excludeOrdersAfter
+  const excludeAfterDate = promptFilters.excludeOrdersAfter
+    ? new Date(promptFilters.excludeOrdersAfter)
+    : null;
+  const effectiveUpperBound = excludeAfterDate && excludeAfterDate < winBackTo
+    ? excludeAfterDate
+    : winBackTo;
+
+  // Filtros de data reutilizáveis em ambos os pools
+  const lastOrderAtFilter = {
+    gte: winBackFrom,
+    lt: effectiveUpperBound,
+  };
+
+  // Filtros extras comuns
+  const extraFilters = {
+    ...(promptFilters.segments?.length ? { segment: { in: promptFilters.segments as never[] } } : {}),
+    ...(promptFilters.minTotalSpent ? { totalSpent: { gte: promptFilters.minTotalSpent } } : {}),
+    ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
+  };
+
   const poolA = await db.customer.findMany({
     where: {
       phone: { not: null },
-      lastOrderAt: { gte: winBackFrom, lte: winBackTo },
-      ...(promptFilters.segments?.length ? { segment: { in: promptFilters.segments as never[] } } : {}),
-      ...(promptFilters.minTotalSpent ? { totalSpent: { gte: promptFilters.minTotalSpent } } : {}),
-      ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
+      lastOrderAt: lastOrderAtFilter,
+      ...extraFilters,
       AND: [
         {
           OR: [
@@ -196,7 +224,7 @@ Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
     where: {
       fidelized: true,
       assignedShopperId: targetUserId,
-      lastOrderAt: { gte: winBackFrom, lte: winBackTo },
+      lastOrderAt: lastOrderAtFilter,
       id: { notIn: [...excludeIds, ...poolAIds] },
     },
     select: { id: true, firstName: true, lastName: true, segment: true, rfmScore: true },
@@ -205,13 +233,14 @@ Retorne apenas o JSON, ex: {"segments":["VIP"],"minDaysSinceOrder":30}`
   const allPoolAIds = [...poolAIds, ...fidelizedToTarget.map((c) => c.id)];
   const poolBExclude = [...excludeIds, ...allPoolAIds];
 
+  // Pool B: alto RFM — agora TAMBÉM respeita o filtro de lastOrderAt
+  // para não trazer clientes que compraram recentemente
   const poolB = await db.customer.findMany({
     where: {
       phone: { not: null },
       rfmScore: { gte: promptFilters.minRfmScore ?? RFM_THRESHOLD },
-      ...(promptFilters.segments?.length ? { segment: { in: promptFilters.segments as never[] } } : {}),
-      ...(promptFilters.minTotalSpent ? { totalSpent: { gte: promptFilters.minTotalSpent } } : {}),
-      ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
+      lastOrderAt: lastOrderAtFilter,
+      ...extraFilters,
       AND: [
         {
           OR: [
