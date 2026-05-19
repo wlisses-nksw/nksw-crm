@@ -28,10 +28,12 @@ interface ClientesKpis {
 async function fetchClientesJson(): Promise<{ kpis: ClientesKpis; rfm: RFMSegment[] } | null> {
   try {
     const res = await fetch("https://nksw-api.vercel.app/data/clientes.json", {
-      next: { revalidate: 3600 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
-    return await res.json();
+    const json = await res.json();
+    if (!json?.kpis || !Array.isArray(json?.rfm)) return null;
+    return json;
   } catch {
     return null;
   }
