@@ -170,6 +170,46 @@ export async function recalculateAllRFM(): Promise<number> {
 }
 
 // ============================================================
+// Recalcular RFM para lista de IDs (cron incremental — evita timeout)
+// ============================================================
+
+export async function recalculateRFMForCustomers(customerIds: string[]): Promise<number> {
+  if (!customerIds.length) return 0;
+
+  const customers = await db.customer.findMany({
+    where: { id: { in: customerIds }, deletedAt: null },
+    select: { id: true, totalSpent: true, ordersCount: true, lastOrderAt: true },
+  });
+
+  let updated = 0;
+  for (const c of customers) {
+    const rfm = calculateRFMScore(
+      {
+        customerId: c.id,
+        lastOrderAt: c.lastOrderAt,
+        ordersCount: c.ordersCount ?? 0,
+        totalSpent: Number(c.totalSpent ?? 0),
+      },
+      DEFAULT_BENCHMARKS
+    );
+
+    await db.customer.update({
+      where: { id: c.id },
+      data: {
+        rfmScore: rfm.total,
+        rfmRecency: rfm.recency,
+        rfmFrequency: rfm.frequency,
+        rfmMonetary: rfm.monetary,
+        rfmLabel: rfm.label,
+        segment: rfmLabelToSegment(rfm.label) as CustomerSegment,
+      },
+    });
+    updated++;
+  }
+  return updated;
+}
+
+// ============================================================
 // RFM de um único cliente
 // ============================================================
 

@@ -6,7 +6,7 @@ import {
   normalizeShopifyCustomer,
   normalizeShopifyOrder,
 } from "@/lib/shopify";
-import { recalculateAllRFM } from "@/services/rfm.service";
+import { recalculateAllRFM, recalculateRFMForCustomers } from "@/services/rfm.service";
 import type { SyncResult, ShopifyOrder } from "@/types";
 import { IntegrationType, SyncStatus } from "@prisma/client";
 import { differenceInHours } from "date-fns";
@@ -37,11 +37,13 @@ export async function syncShopify(options?: {
     const shopifyCustomers = await fetchAllCustomers(updatedSince);
     log(`${shopifyCustomers.length} clientes encontrados`);
 
+    const syncedCustomerIds: string[] = [];
+
     for (const sc of shopifyCustomers) {
       try {
         const normalized = normalizeShopifyCustomer(sc);
 
-        await db.customer.upsert({
+        const record = await db.customer.upsert({
           where: { shopifyId: normalized.shopifyId },
           create: {
             ...normalized,
@@ -53,6 +55,7 @@ export async function syncShopify(options?: {
           },
         });
 
+        syncedCustomerIds.push(record.id);
         synced++;
       } catch (err) {
         console.error(`[sync] Erro no cliente ${sc.email}:`, err);
@@ -68,7 +71,7 @@ export async function syncShopify(options?: {
     });
     log(`${shopifyOrders.length} pedidos encontrados`);
 
-    await syncOrders(shopifyOrders, log);
+    const orderCustomerIds = await syncOrders(shopifyOrders, log);
 
     // Carrinhos abandonados
     log("Buscando carrinhos abandonados...");
@@ -76,10 +79,13 @@ export async function syncShopify(options?: {
     await syncAbandonedCarts(checkouts);
     log(`${checkouts.length} carrinhos sincronizados`);
 
-    // Recalcular RFM após sync
-    log("Recalculando scores RFM...");
-    await recalculateAllRFM();
-    log("RFM recalculado");
+    // Recalcular RFM apenas para clientes que foram sincronizados (evita timeout)
+    const rfmIds = [...new Set([...syncedCustomerIds, ...orderCustomerIds])];
+    if (rfmIds.length > 0) {
+      log(`Recalculando RFM para ${rfmIds.length} clientes atualizados...`);
+      await recalculateRFMForCustomers(rfmIds);
+      log("RFM atualizado");
+    }
 
     await setIntegrationStatus(IntegrationType.SHOPIFY, SyncStatus.SUCCESS, synced);
 
@@ -112,7 +118,8 @@ export async function syncShopify(options?: {
 async function syncOrders(
   orders: ShopifyOrder[],
   log: (m: string) => void
-): Promise<void> {
+): Promise<string[]> {
+  const affectedCustomerIds: string[] = [];
   for (const so of orders) {
     try {
       // 1. Tenta pelo shopifyId do customer
@@ -192,10 +199,12 @@ async function syncOrders(
 
       // Atualizar stats do cliente
       await updateCustomerStats(customer.id);
+      affectedCustomerIds.push(customer.id);
     } catch (err) {
       console.error(`[sync] Erro no pedido ${so.id}:`, err);
     }
   }
+  return affectedCustomerIds;
 }
 
 // ============================================================

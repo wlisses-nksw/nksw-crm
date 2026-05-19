@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, hasPermission } from "@/lib/auth";
-import { fetchCustomerByEmail, fetchOrdersByEmail } from "@/lib/shopify";
+import { fetchCustomerByEmail, fetchOrdersByEmail, normalizeShopifyCustomer, normalizeShopifyOrder } from "@/lib/shopify";
 import { db } from "@/lib/db";
-import { normalizeShopifyCustomer, normalizeShopifyOrder } from "@/lib/shopify";
+import { recalculateRFMForCustomers } from "@/services/rfm.service";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -101,6 +101,11 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[sync-customer] pedido", so.id, err);
     }
+  }
+
+  // Recalcula RFM do cliente
+  if (customerId) {
+    await recalculateRFMForCustomers([customerId]).catch(() => {});
   }
 
   return NextResponse.json({
