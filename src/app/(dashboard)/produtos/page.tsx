@@ -162,10 +162,11 @@ function CurvaBadge({ curva }: { curva: string }) {
 /* ------------------------------------------------------------------ */
 
 export default function ProdutosPage() {
-  const [data,    setData]    = useState<ConfItem[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [search,  setSearch]  = useState("");
-  const [filters, setFilters] = useState<FilterMap>({});
+  const [data,         setData]         = useState<ConfItem[] | null>(null);
+  const [loading,      setLoading]      = useState(false);
+  const [search,       setSearch]       = useState("");
+  const [filters,      setFilters]      = useState<FilterMap>({});
+  const [hideZerados,  setHideZerados]  = useState(false);
   // loadKey força remount de todos os ColFilter (limpa estado interno) a cada load
   const [loadKey, setLoadKey] = useState(0);
 
@@ -215,6 +216,8 @@ export default function ProdutosPage() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.filter(row => {
+      // ocultar zerados: sisplan=0, pré=0 e shopify=null
+      if (hideZerados && row.sisplan === 0 && (row.pre_estoque || 0) === 0 && row.shopify === null) return false;
       // filtro de texto por descrição, código ou cor (com null-safety)
       if (q) {
         const desc = (row.descricao || "").toLowerCase();
@@ -230,7 +233,7 @@ export default function ProdutosPage() {
       }
       return true;
     });
-  }, [data, search, filters]);
+  }, [data, search, filters, hideZerados]);
 
   /* ---- Resumo sobre os itens filtrados (atualiza com busca e filtros) ---- */
   const resumo = useMemo(() => {
@@ -323,14 +326,25 @@ export default function ProdutosPage() {
             </span>
           )}
           {data && (
-            <div className="ml-auto flex items-center gap-3">
-              {/* Busca por descrição */}
+            <div className="ml-auto flex items-center gap-3 flex-wrap">
+              {/* Toggle: ocultar zerados */}
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted-foreground hover:text-foreground">
+                <div
+                  onClick={() => setHideZerados(v => !v)}
+                  className={`relative w-8 h-4 rounded-full transition-colors ${hideZerados ? "bg-primary" : "bg-border"}`}
+                >
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${hideZerados ? "translate-x-4" : "translate-x-0.5"}`} />
+                </div>
+                Ocultar sem estoque
+              </label>
+
+              {/* Busca */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar por descrição do produto..."
+                  placeholder="Buscar por descrição, código, cor..."
                   className="pl-9 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary w-72"
                 />
               </div>
