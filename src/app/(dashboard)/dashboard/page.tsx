@@ -4,6 +4,7 @@ import { RFMChart } from "@/components/dashboard/rfm-chart";
 import { AbandonedCartsAlert } from "@/components/dashboard/abandoned-carts-alert";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getRFMDistribution } from "@/services/rfm.service";
 import { startOfMonth, startOfDay } from "date-fns";
 import { TaskStatus } from "@prisma/client";
 
@@ -60,14 +61,28 @@ async function getDashboardData() {
     db.customer.count({ where: { deletedAt: null, active: true, createdAt: { gte: som } } }),
   ]);
 
-  // Clientes e RFM vêm do mesmo JSON que a aba Clientes
-  const totalCustomers = clientesJson?.kpis.total ?? 0;
-  const vipCustomers = clientesJson?.rfm
-    .filter((s) => s.segmento.startsWith("VIP"))
-    .reduce((sum, s) => sum + s.base, 0) ?? 0;
-  const rfmDistribution: Record<string, number> = clientesJson
-    ? Object.fromEntries(clientesJson.rfm.map((s) => [s.segmento, s.base]))
-    : {};
+  // Tenta usar o JSON externo (mesma fonte da aba Clientes)
+  // Se falhar, cai no banco como fallback
+  let totalCustomers: number;
+  let vipCustomers: number;
+  let rfmDistribution: Record<string, number>;
+
+  if (clientesJson) {
+    totalCustomers = clientesJson.kpis.total;
+    vipCustomers = clientesJson.rfm
+      .filter((s) => s.segmento.startsWith("VIP"))
+      .reduce((sum, s) => sum + s.base, 0);
+    rfmDistribution = Object.fromEntries(
+      clientesJson.rfm.map((s) => [s.segmento, s.base])
+    );
+  } else {
+    // Fallback: banco de dados
+    [totalCustomers, vipCustomers, rfmDistribution] = await Promise.all([
+      db.customer.count({ where: { deletedAt: null, active: true } }),
+      db.customer.count({ where: { deletedAt: null, active: true, segment: "VIP" } }),
+      getRFMDistribution(),
+    ]);
+  }
 
   return {
     stats: {
