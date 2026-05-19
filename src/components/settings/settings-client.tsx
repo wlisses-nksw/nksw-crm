@@ -51,6 +51,9 @@ export function SettingsClient({ session, integration, customerCount }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("conta");
   const [pwLoading, setPwLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [emailSync, setEmailSync] = useState("");
+  const [emailSyncLoading, setEmailSyncLoading] = useState(false);
+  const [emailSyncResult, setEmailSyncResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
 
   const isAdmin = session?.user?.role === "ADMIN";
@@ -86,6 +89,35 @@ export function SettingsClient({ session, integration, customerCount }: Props) {
       setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } finally {
       setPwLoading(false);
+    }
+  }
+
+  async function handleEmailSync(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailSync.trim()) return;
+    setEmailSyncLoading(true);
+    setEmailSyncResult(null);
+    try {
+      const res = await fetch("/api/integrations/shopify/sync-customer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailSync.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailSyncResult({ ok: false, msg: data.error ?? "Erro no sync" });
+      } else {
+        setEmailSyncResult({
+          ok: true,
+          msg: data.customerFound
+            ? `✓ Cliente encontrado — ${data.ordersSynced} de ${data.ordersTotal} pedido(s) sincronizado(s)`
+            : `⚠ Cliente não encontrado no Shopify para ${data.email}`,
+        });
+      }
+    } catch {
+      setEmailSyncResult({ ok: false, msg: "Erro de conexão" });
+    } finally {
+      setEmailSyncLoading(false);
     }
   }
 
@@ -242,11 +274,40 @@ export function SettingsClient({ session, integration, customerCount }: Props) {
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <Button onClick={handleIncrementalSync} disabled={syncLoading} variant="outline" size="sm" className="gap-1.5">
-              <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? "animate-spin" : ""}`} />
-              {syncLoading ? "Sincronizando..." : "Sync incremental (últimas 25h)"}
-            </Button>
+          <div className="flex flex-col gap-4">
+            {/* Sync geral */}
+            <div className="flex items-center gap-3">
+              <Button onClick={handleIncrementalSync} disabled={syncLoading} variant="outline" size="sm" className="gap-1.5">
+                <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? "animate-spin" : ""}`} />
+                {syncLoading ? "Sincronizando..." : "Sync incremental (últimas 25h)"}
+              </Button>
+            </div>
+
+            {/* Sync por email */}
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Forçar sync de cliente específico</p>
+              <form onSubmit={handleEmailSync} className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="email do cliente..."
+                  value={emailSync}
+                  onChange={e => { setEmailSync(e.target.value); setEmailSyncResult(null); }}
+                  className="text-sm h-8 max-w-xs"
+                />
+                <Button type="submit" size="sm" disabled={emailSyncLoading} variant="outline" className="gap-1.5 h-8 shrink-0">
+                  <RefreshCw className={`w-3.5 h-3.5 ${emailSyncLoading ? "animate-spin" : ""}`} />
+                  {emailSyncLoading ? "Buscando..." : "Sincronizar"}
+                </Button>
+              </form>
+              {emailSyncResult && (
+                <p className={`text-xs mt-2 ${emailSyncResult.ok ? "text-green-600" : "text-red-600"}`}>
+                  {emailSyncResult.msg}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                Busca todos os pedidos do cliente no Shopify e salva no CRM. Útil para pedidos que não entraram automaticamente.
+              </p>
+            </div>
           </div>
 
           {customerCount === 0 && (

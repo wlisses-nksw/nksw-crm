@@ -115,6 +115,23 @@ export async function fetchOrdersByCustomer(customerId: string): Promise<Shopify
   return data.orders;
 }
 
+export async function fetchOrdersByEmail(email: string): Promise<ShopifyOrder[]> {
+  const data = await shopifyGet<{ orders: ShopifyOrder[] }>("/orders.json", {
+    email,
+    status: "any",
+    limit: 250,
+  });
+  return data.orders;
+}
+
+export async function fetchCustomerByEmail(email: string): Promise<ShopifyCustomer | null> {
+  const data = await shopifyGet<{ customers: ShopifyCustomer[] }>("/customers/search.json", {
+    query: `email:${email}`,
+    limit: 1,
+  });
+  return data.customers[0] ?? null;
+}
+
 // ============================================================
 // Carrinhos Abandonados
 // ============================================================

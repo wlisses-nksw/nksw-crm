@@ -115,12 +115,52 @@ async function syncOrders(
 ): Promise<void> {
   for (const so of orders) {
     try {
-      if (!so.customer?.id) continue;
+      // 1. Tenta pelo shopifyId do customer
+      let customer = so.customer?.id
+        ? await db.customer.findFirst({ where: { shopifyId: String(so.customer.id) } })
+        : null;
 
-      const customer = await db.customer.findFirst({
-        where: { shopifyId: String(so.customer.id) },
-      });
-      if (!customer) continue;
+      // 2. Fallback: busca pelo email do pedido
+      const orderEmail = (so.email ?? so.contact_email ?? "").toLowerCase().trim();
+      if (!customer && orderEmail) {
+        customer = await db.customer.findFirst({ where: { email: orderEmail } });
+        // Vincula shopifyId se encontrou por email e o pedido tem customer
+        if (customer && so.customer?.id) {
+          await db.customer.update({
+            where: { id: customer.id },
+            data: { shopifyId: String(so.customer.id) },
+          }).catch(() => {});
+        }
+      }
+
+      // 3. Upsert do cliente a partir dos dados do pedido (novo cliente)
+      if (!customer && so.customer?.id) {
+        const c = so.customer;
+        customer = await db.customer.upsert({
+          where: { shopifyId: String(c.id) },
+          create: {
+            shopifyId: String(c.id),
+            email: (c.email ?? orderEmail).toLowerCase(),
+            firstName: c.first_name ?? "",
+            lastName: c.last_name ?? "",
+            phone: c.phone ?? null,
+            totalSpent: parseFloat(String(c.total_spent ?? "0")),
+            ordersCount: c.orders_count ?? 0,
+            shopifyTags: c.tags ? c.tags.split(",").map((t: string) => t.trim()) : [],
+            acceptsMarketing: c.accepts_marketing ?? false,
+          },
+          update: {
+            totalSpent: parseFloat(String(c.total_spent ?? "0")),
+            ordersCount: c.orders_count ?? 0,
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      if (!customer) {
+        log(`[sync] Pedido ${so.id} sem cliente identificável — ignorado`);
+        continue;
+      }
 
       const normalized = normalizeShopifyOrder(so, customer.id);
 
