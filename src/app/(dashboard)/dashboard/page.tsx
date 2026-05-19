@@ -1,7 +1,6 @@
 import { Header } from "@/components/layout/header";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { RFMChart } from "@/components/dashboard/rfm-chart";
-import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { AbandonedCartsAlert } from "@/components/dashboard/abandoned-carts-alert";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
@@ -23,11 +22,10 @@ async function getDashboardData() {
     abandonedCarts,
     rfmDistribution,
     revenue,
-    recentCustomers,
   ] = await Promise.all([
     db.customer.count({ where: { deletedAt: null, active: true } }),
-    db.customer.count({ where: { deletedAt: null, createdAt: { gte: som } } }),
-    db.customer.count({ where: { deletedAt: null, segment: "VIP" } }),
+    db.customer.count({ where: { deletedAt: null, active: true, createdAt: { gte: som } } }),
+    db.customer.count({ where: { deletedAt: null, active: true, segment: "VIP" } }),
     db.task.count({ where: { status: { in: ["PENDENTE", "EM_ANDAMENTO"] } } }),
     db.abandonedCart.aggregate({
       where: { recoveredAt: null },
@@ -40,20 +38,6 @@ async function getDashboardData() {
       _sum: { totalPrice: true },
       _count: { id: true },
       _avg: { totalPrice: true },
-    }),
-    db.customer.findMany({
-      where: { deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        segment: true,
-        totalSpent: true,
-        createdAt: true,
-      },
     }),
   ]);
 
@@ -70,7 +54,6 @@ async function getDashboardData() {
       avgOrderValue: Number(revenue._avg.totalPrice ?? 0),
     },
     rfmDistribution,
-    recentCustomers,
   };
 }
 
@@ -219,10 +202,6 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Atividade recente — só para Admin/Supervisor */}
-        {(isAdmin || !isPS) && (
-          <RecentActivity customers={data.recentCustomers} />
-        )}
       </div>
     </div>
   );

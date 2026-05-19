@@ -29,9 +29,23 @@ const RFM_COLORS: Record<string, string> = {
   Lost: "#374151",
 };
 
+const RFM_PT: Record<string, string> = {
+  Champions: "Campeões",
+  "Loyal Customers": "Clientes Fiéis",
+  "Potential Loyalists": "Potenciais Fiéis",
+  "Recent Customers": "Clientes Novos",
+  Promising: "Promissores",
+  "Needs Attention": "Precisam Atenção",
+  "About To Sleep": "Quase Inativos",
+  "At Risk": "Em Risco",
+  "Cannot Lose Them": "Não Pode Perder",
+  Hibernating: "Hibernando",
+  Lost: "Perdidos",
+};
+
 export function RFMChart({ distribution }: RFMChartProps) {
   const data = Object.entries(distribution)
-    .map(([label, count]) => ({ label, count }))
+    .map(([label, count]) => ({ label, labelPt: RFM_PT[label] ?? label, count }))
     .sort((a, b) => b.count - a.count);
 
   const total = data.reduce((s, d) => s + d.count, 0);
@@ -50,7 +64,7 @@ export function RFMChart({ distribution }: RFMChartProps) {
           <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="label"
+              dataKey="labelPt"
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
@@ -68,6 +82,7 @@ export function RFMChart({ distribution }: RFMChartProps) {
                 fontSize: 12,
               }}
               formatter={(value: number) => [value, "Clientes"]}
+              labelFormatter={(labelPt: string) => labelPt}
             />
             <Bar dataKey="count" radius={[4, 4, 0, 0]}>
               {data.map((entry) => (
@@ -90,7 +105,7 @@ export function RFMChart({ distribution }: RFMChartProps) {
               style={{ backgroundColor: RFM_COLORS[d.label] ?? "hsl(var(--primary))" }}
             />
             <span className="text-xs text-muted-foreground">
-              {d.label} <span className="font-medium text-foreground">({d.count})</span>
+              {d.labelPt} <span className="font-medium text-foreground">({d.count})</span>
             </span>
           </div>
         ))}
