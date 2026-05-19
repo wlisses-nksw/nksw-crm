@@ -211,26 +211,32 @@ export default function ProdutosPage() {
     return opts;
   }, [data]);
 
-  /* ---- Dados filtrados (lógica idêntica ao BI _confFiltered) ---- */
+  /* ---- Dados filtrados ---- */
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
+
     return data.filter(row => {
-      // ocultar zerados: sisplan=0, pré=0 e shopify=null
-      if (hideZerados && row.sisplan === 0 && (row.pre_estoque || 0) === 0 && row.shopify === null) return false;
-      // filtro de texto por descrição, código ou cor (com null-safety)
-      if (q) {
-        const desc = (row.descricao || "").toLowerCase();
-        const cod  = (row.codigo    || "").toLowerCase();
-        const cor  = (row.cor       || "").toLowerCase();
-        if (!desc.includes(q) && !cod.includes(q) && !cor.includes(q)) return false;
+      // 1. Toggle "ocultar sem estoque": usa campos string já computados (evita null/undefined)
+      if (hideZerados && row.shopify_str === "—" && row.sisplan_str === "0" && row.pre_str === "0") {
+        return false;
       }
-      // filtros de coluna: se Set não vazio → só mostra se valor estiver no Set
+
+      // 2. Busca textual (descrição + código + cor)
+      if (q) {
+        const haystack = [row.descricao, row.codigo, row.cor]
+          .map(s => (s || "").toLowerCase())
+          .join(" ");
+        if (!haystack.includes(q)) return false;
+      }
+
+      // 3. Filtros de coluna (lógica idêntica ao BI)
       for (const [campo, s] of Object.entries(filters)) {
         if (!s || !s.size) continue;
-        const val = String((row as unknown as Record<string,unknown>)[campo] ?? "—");
+        const val = String((row as unknown as Record<string, unknown>)[campo] ?? "—");
         if (!s.has(val)) return false;
       }
+
       return true;
     });
   }, [data, search, filters, hideZerados]);
