@@ -15,37 +15,40 @@ interface RFMChartProps {
   distribution: Record<string, number>;
 }
 
+// Segmentos personalizados do clientes.json (já em português)
 const RFM_COLORS: Record<string, string> = {
-  Champions: "#f43f5e",
-  "Loyal Customers": "#ec4899",
-  "Potential Loyalists": "#8b5cf6",
-  "Recent Customers": "#6366f1",
-  Promising: "#3b82f6",
-  "Needs Attention": "#f59e0b",
-  "About To Sleep": "#f97316",
-  "At Risk": "#ef4444",
-  "Cannot Lose Them": "#dc2626",
-  Hibernating: "#6b7280",
-  Lost: "#374151",
+  // VIP
+  "VIP Ativo": "#ec4899",
+  "VIP Reaquecer": "#f59e0b",
+  "VIP Em Risco": "#dc2626",
+  // Alto Valor
+  "Alto Valor Ativo": "#f43f5e",
+  "Alto Valor Em Risco": "#ef4444",
+  "Alto Valor Hibernado": "#374151",
+  "Alto Valor Morno": "#f97316",
+  // Potencial
+  "Potencial Ativo": "#3b82f6",
+  "Potencial Morno": "#6366f1",
+  "Potencial Inativo": "#9ca3af",
+  // Outros
+  Emergente: "#8b5cf6",
+  "Novo/Eventual": "#a78bfa",
+  "Baixo Engajamento": "#6b7280",
 };
 
-const RFM_PT: Record<string, string> = {
-  Champions: "Campeões",
-  "Loyal Customers": "Clientes Fiéis",
-  "Potential Loyalists": "Potenciais Fiéis",
-  "Recent Customers": "Clientes Novos",
-  Promising: "Promissores",
-  "Needs Attention": "Precisam Atenção",
-  "About To Sleep": "Quase Inativos",
-  "At Risk": "Em Risco",
-  "Cannot Lose Them": "Não Pode Perder",
-  Hibernating: "Hibernando",
-  Lost: "Perdidos",
-};
+// Paleta de fallback para segmentos não mapeados
+const FALLBACK_PALETTE = [
+  "#f43f5e","#ec4899","#8b5cf6","#6366f1","#3b82f6",
+  "#f59e0b","#f97316","#ef4444","#dc2626","#6b7280","#374151",
+];
+
+function getColor(label: string, index: number): string {
+  return RFM_COLORS[label] ?? FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
+}
 
 export function RFMChart({ distribution }: RFMChartProps) {
   const data = Object.entries(distribution)
-    .map(([label, count]) => ({ label, labelPt: RFM_PT[label] ?? label, count }))
+    .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count);
 
   const total = data.reduce((s, d) => s + d.count, 0);
@@ -55,7 +58,7 @@ export function RFMChart({ distribution }: RFMChartProps) {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-sm font-semibold">Distribuição RFM</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{total} clientes classificados</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{total.toLocaleString("pt-BR")} clientes classificados</p>
         </div>
       </div>
 
@@ -64,7 +67,7 @@ export function RFMChart({ distribution }: RFMChartProps) {
           <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="labelPt"
+              dataKey="label"
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
@@ -81,14 +84,13 @@ export function RFMChart({ distribution }: RFMChartProps) {
                 borderRadius: "8px",
                 fontSize: 12,
               }}
-              formatter={(value: number) => [value, "Clientes"]}
-              labelFormatter={(labelPt: string) => labelPt}
+              formatter={(value: number) => [value.toLocaleString("pt-BR"), "Clientes"]}
             />
             <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {data.map((entry) => (
+              {data.map((entry, i) => (
                 <Cell
                   key={entry.label}
-                  fill={RFM_COLORS[entry.label] ?? "hsl(var(--primary))"}
+                  fill={getColor(entry.label, i)}
                 />
               ))}
             </Bar>
@@ -98,14 +100,14 @@ export function RFMChart({ distribution }: RFMChartProps) {
 
       {/* Legenda compacta */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4">
-        {data.slice(0, 6).map((d) => (
+        {data.slice(0, 8).map((d, i) => (
           <div key={d.label} className="flex items-center gap-1.5">
             <div
               className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: RFM_COLORS[d.label] ?? "hsl(var(--primary))" }}
+              style={{ backgroundColor: getColor(d.label, i) }}
             />
             <span className="text-xs text-muted-foreground">
-              {d.labelPt} <span className="font-medium text-foreground">({d.count})</span>
+              {d.label} <span className="font-medium text-foreground">({d.count.toLocaleString("pt-BR")})</span>
             </span>
           </div>
         ))}

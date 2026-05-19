@@ -4,42 +4,68 @@ import { RFMChart } from "@/components/dashboard/rfm-chart";
 import { AbandonedCartsAlert } from "@/components/dashboard/abandoned-carts-alert";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { getRFMDistribution } from "@/services/rfm.service";
 import { startOfMonth, startOfDay } from "date-fns";
 import { TaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+interface RFMSegment {
+  segmento: string;
+  base: number;
+  pedidos: number;
+  receita: number;
+}
+
+interface ClientesKpis {
+  total: number;
+  recompras: number;
+  pctRecomp: number;
+  ltv: number;
+  avgDaysBetween: number;
+  totalReceita: number;
+}
+
+async function fetchClientesJson(): Promise<{ kpis: ClientesKpis; rfm: RFMSegment[] } | null> {
+  try {
+    const res = await fetch("https://nksw-api.vercel.app/data/clientes.json", {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function getDashboardData() {
   const now = new Date();
   const som = startOfMonth(now);
 
-  const [
-    totalCustomers,
-    newCustomers,
-    vipCustomers,
-    openTasks,
-    abandonedCarts,
-    rfmDistribution,
-    revenue,
-  ] = await Promise.all([
-    db.customer.count({ where: { deletedAt: null, active: true } }),
-    db.customer.count({ where: { deletedAt: null, active: true, createdAt: { gte: som } } }),
-    db.customer.count({ where: { deletedAt: null, active: true, segment: "VIP" } }),
+  const [clientesJson, openTasks, abandonedCarts, revenue, newCustomers] = await Promise.all([
+    fetchClientesJson(),
     db.task.count({ where: { status: { in: ["PENDENTE", "EM_ANDAMENTO"] } } }),
     db.abandonedCart.aggregate({
       where: { recoveredAt: null },
       _count: { id: true },
       _sum: { totalPrice: true },
     }),
-    getRFMDistribution(),
     db.order.aggregate({
       where: { financialStatus: "PAID", createdAt: { gte: som } },
       _sum: { totalPrice: true },
       _count: { id: true },
       _avg: { totalPrice: true },
     }),
+    db.customer.count({ where: { deletedAt: null, active: true, createdAt: { gte: som } } }),
   ]);
+
+  // Clientes e RFM vêm do mesmo JSON que a aba Clientes
+  const totalCustomers = clientesJson?.kpis.total ?? 0;
+  const vipCustomers = clientesJson?.rfm
+    .filter((s) => s.segmento.startsWith("VIP"))
+    .reduce((sum, s) => sum + s.base, 0) ?? 0;
+  const rfmDistribution: Record<string, number> = clientesJson
+    ? Object.fromEntries(clientesJson.rfm.map((s) => [s.segmento, s.base]))
+    : {};
 
   return {
     stats: {
