@@ -215,8 +215,13 @@ export default function ProdutosPage() {
     if (!data) return [];
     const q = search.trim().toLowerCase();
     return data.filter(row => {
-      // filtro de texto por descrição (igual ao BI)
-      if (q && !row.descricao.toLowerCase().includes(q)) return false;
+      // filtro de texto por descrição, código ou cor (com null-safety)
+      if (q) {
+        const desc = (row.descricao || "").toLowerCase();
+        const cod  = (row.codigo    || "").toLowerCase();
+        const cor  = (row.cor       || "").toLowerCase();
+        if (!desc.includes(q) && !cod.includes(q) && !cor.includes(q)) return false;
+      }
       // filtros de coluna: se Set não vazio → só mostra se valor estiver no Set
       for (const [campo, s] of Object.entries(filters)) {
         if (!s || !s.size) continue;
@@ -227,17 +232,17 @@ export default function ProdutosPage() {
     });
   }, [data, search, filters]);
 
-  /* ---- Resumo (sobre _confData completo, como no BI) ---- */
+  /* ---- Resumo sobre os itens filtrados (atualiza com busca e filtros) ---- */
   const resumo = useMemo(() => {
-    if (!data) return { total:0, iguais:0, sigMaior:0, sigMenor:0, semMatch:0 };
+    const src = filtered;
     return {
-      total:    data.length,
-      iguais:   data.filter(r => r.diff === 0).length,
-      sigMaior: data.filter(r => r.diff !== null && r.diff > 0).length,
-      sigMenor: data.filter(r => r.diff !== null && r.diff < 0).length,
-      semMatch: data.filter(r => r.shopify === null).length,
+      total:    src.length,
+      iguais:   src.filter(r => r.diff === 0).length,
+      sigMaior: src.filter(r => r.diff !== null && r.diff > 0).length,
+      sigMenor: src.filter(r => r.diff !== null && r.diff < 0).length,
+      semMatch: src.filter(r => r.shopify === null).length,
     };
-  }, [data]);
+  }, [filtered]);
 
   /* ---- CSV (igual ao BI downloadConferenciaCSV) ---- */
   const downloadCSV = useCallback(() => {
