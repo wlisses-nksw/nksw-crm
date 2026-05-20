@@ -245,8 +245,12 @@ export function CustomerProfile({ customer: initial }: Props) {
                         body: JSON.stringify({ campaignSlug: selectedCampaignSlug }),
                       });
                       const json = await res.json();
-                      if (res.ok) toast.success("WhatsApp enviado via Voll!");
-                      else toast.error(json.error ?? "Erro ao enviar WhatsApp");
+                      if (res.ok) {
+                        const vollResp = JSON.stringify(json.data ?? json);
+                        toast.success(`Enviado — Voll: ${vollResp}`, { duration: 8000 });
+                      } else {
+                        toast.error(json.error ?? "Erro ao enviar WhatsApp");
+                      }
                     } catch { toast.error("Erro ao enviar WhatsApp"); }
                     setSendingWhatsapp(false);
                   }}
