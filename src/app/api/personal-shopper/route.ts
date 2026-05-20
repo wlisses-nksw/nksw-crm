@@ -133,33 +133,48 @@ Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtPro
     }
   }
 
-  // Resolver IDs de clientes com base em histórico de compras (line_items)
-  let mustIncludeIds: string[] | null = null;   // null = sem restrição; [] = nenhum cliente
+  console.log("[PS IA] promptFilters extraídos:", JSON.stringify(promptFilters));
+
+  // Resolver IDs de clientes com base em histórico de compras (via orders → lineItems)
+  let mustIncludeIds: string[] | null = null;   // null = sem restrição; [] = nenhum encontrado
   let mustExcludeFromProductIds: string[] = [];
 
   if (promptFilters.boughtProducts?.length) {
-    const rows = await db.lineItem.findMany({
+    const orders = await db.order.findMany({
       where: {
-        OR: promptFilters.boughtProducts.map((kw) => ({
-          title: { contains: kw, mode: "insensitive" as const },
-        })),
+        lineItems: {
+          some: {
+            OR: promptFilters.boughtProducts.map((kw) => ({
+              title: { contains: kw, mode: "insensitive" as const },
+            })),
+          },
+        },
       },
-      select: { order: { select: { customerId: true } } },
+      select: { customerId: true },
+      distinct: ["customerId"],
     });
-    mustIncludeIds = [...new Set(rows.map((r) => r.order.customerId))];
+    mustIncludeIds = orders.map((o) => o.customerId);
+    console.log(`[PS IA] boughtProducts ${JSON.stringify(promptFilters.boughtProducts)} → ${mustIncludeIds.length} clientes encontrados`);
   }
 
   if (promptFilters.notBoughtProducts?.length) {
-    const rows = await db.lineItem.findMany({
+    const orders = await db.order.findMany({
       where: {
-        OR: promptFilters.notBoughtProducts.map((kw) => ({
-          title: { contains: kw, mode: "insensitive" as const },
-        })),
+        lineItems: {
+          some: {
+            OR: promptFilters.notBoughtProducts.map((kw) => ({
+              title: { contains: kw, mode: "insensitive" as const },
+            })),
+          },
+        },
       },
-      select: { order: { select: { customerId: true } } },
+      select: { customerId: true },
+      distinct: ["customerId"],
     });
-    mustExcludeFromProductIds = [...new Set(rows.map((r) => r.order.customerId))];
+    mustExcludeFromProductIds = orders.map((o) => o.customerId);
+    console.log(`[PS IA] notBoughtProducts ${JSON.stringify(promptFilters.notBoughtProducts)} → ${mustExcludeFromProductIds.length} clientes a excluir`);
   }
+
 
   if (!forceNew) {
     const existing = await db.task.count({
@@ -344,6 +359,9 @@ Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtPro
     ok: true,
     generated: tasks.length,
     pools: { winback: poolA.length, rfm: poolB.length },
+    // Debug: filtros extraídos pelo Claude Haiku — útil para verificar se o prompt foi interpretado corretamente
+    extractedFilters: promptFilters,
+    productMatchCount: mustIncludeIds !== null ? mustIncludeIds.length : null,
   }, { status: 201 });
 }
 
