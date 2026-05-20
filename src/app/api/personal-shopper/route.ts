@@ -83,10 +83,12 @@ export async function POST(req: NextRequest) {
     segments?: string[];
     minDaysSinceOrder?: number;
     maxDaysSinceOrder?: number;
-    excludeOrdersAfter?: string; // ISO date — exclui quem comprou APÓS essa data (ex: "2026-05-01")
+    excludeOrdersAfter?: string;    // ISO date — exclui quem comprou APÓS essa data
     minTotalSpent?: number;
     minRfmScore?: number;
     states?: string[];
+    boughtProducts?: string[];      // palavras-chave: inclui só quem JÁ comprou esses produtos
+    notBoughtProducts?: string[];   // palavras-chave: exclui quem JÁ comprou esses produtos
   }
   let promptFilters: PromptFilters = {};
   if (promptText) {
@@ -98,25 +100,30 @@ export async function POST(req: NextRequest) {
         max_tokens: 512,
         messages: [{
           role: "user",
-          content: `Você é um assistente de CRM. Hoje é ${today}. Interprete o pedido abaixo e retorne SOMENTE um JSON com os filtros de seleção de clientes, sem texto adicional.
+          content: `Você é um assistente de CRM de moda praia. Hoje é ${today}. Interprete o pedido abaixo e retorne SOMENTE um JSON com os filtros de seleção de clientes, sem texto adicional.
 
 Pedido: "${promptText}"
 
 Campos disponíveis (todos opcionais):
 - segments: array com valores de CustomerSegment (VIP, ALTO_POTENCIAL, RECORRENTE, EM_RISCO, INATIVO, NOVO, PRIMEIRA_COMPRA)
-- minDaysSinceOrder: número mínimo de dias desde a última compra (ex: "não compra há mais de 90 dias" → 90)
+- minDaysSinceOrder: número mínimo de dias desde a última compra
 - maxDaysSinceOrder: número máximo de dias desde a última compra
-- excludeOrdersAfter: data ISO "YYYY-MM-DD" — exclui quem fez QUALQUER compra após essa data. Use para pedidos como "retire quem comprou em maio", "retire quem comprou este mês", "excluir compras de maio de 2026". Para "maio de 2026" use "2026-05-01". Para "este mês" calcule o primeiro dia do mês corrente.
+- excludeOrdersAfter: data ISO "YYYY-MM-DD" — exclui quem comprou APÓS essa data. Para "retire quem comprou em maio de 2026" → "2026-05-01". Para "este mês" → primeiro dia do mês atual.
 - minTotalSpent: valor mínimo gasto total em reais
 - minRfmScore: score RFM mínimo (1-12). "bom potencial" = 6, "alto RFM" = 8
-- states: array de siglas de estados brasileiros (ex: ["SP", "RJ"])
+- states: array de siglas de estados brasileiros
+- boughtProducts: array de palavras-chave para buscar no histórico de compras — inclui APENAS clientes que já compraram produtos com esses termos no título. Use para "que compraram X", "clientes do produto Y", "que já levaram Z".
+- notBoughtProducts: array de palavras-chave — exclui clientes que já compraram esses produtos. Use para "que não compraram X", "sem produto Y".
 
-Regras importantes:
-- "retire quem comprou em [mês]" ou "excluir compras de [mês]" → use excludeOrdersAfter com o primeiro dia desse mês
+Regras:
+- Nomes de produtos (ex: "calcinha nina", "top alana", "vestido sofie") → extraia como palavras-chave simples: ["nina"], ["alana"], ["sofie"]
+- "que compraram calcinha nina" → boughtProducts: ["nina"]
+- "que não compraram top alana" → notBoughtProducts: ["alana"]
+- "retire quem comprou em maio" → excludeOrdersAfter: "2026-05-01"
 - "não compra há mais de X dias" → minDaysSinceOrder: X
-- Não invente campos. Retorne apenas o JSON.
+- Retorne apenas o JSON.
 
-Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore":6}`
+Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtProducts":["alana"],"minRfmScore":6}`
         }],
       });
       const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
@@ -124,6 +131,34 @@ Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore"
     } catch {
       // Se falhar, ignora o prompt e usa filtros padrão
     }
+  }
+
+  // Resolver IDs de clientes com base em histórico de compras (line_items)
+  let mustIncludeIds: string[] | null = null;   // null = sem restrição; [] = nenhum cliente
+  let mustExcludeFromProductIds: string[] = [];
+
+  if (promptFilters.boughtProducts?.length) {
+    const rows = await db.lineItem.findMany({
+      where: {
+        OR: promptFilters.boughtProducts.map((kw) => ({
+          title: { contains: kw, mode: "insensitive" as const },
+        })),
+      },
+      select: { order: { select: { customerId: true } } },
+    });
+    mustIncludeIds = [...new Set(rows.map((r) => r.order.customerId))];
+  }
+
+  if (promptFilters.notBoughtProducts?.length) {
+    const rows = await db.lineItem.findMany({
+      where: {
+        OR: promptFilters.notBoughtProducts.map((kw) => ({
+          title: { contains: kw, mode: "insensitive" as const },
+        })),
+      },
+      select: { order: { select: { customerId: true } } },
+    });
+    mustExcludeFromProductIds = [...new Set(rows.map((r) => r.order.customerId))];
   }
 
   if (!forceNew) {
@@ -197,6 +232,21 @@ Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore"
     ...(promptFilters.states?.length ? { state: { in: promptFilters.states } } : {}),
   };
 
+  // Combina todos os IDs a excluir: cooldown + outros PS + produtos proibidos
+  const allExcludeIds = [...new Set([...excludeIds, ...mustExcludeFromProductIds])];
+
+  // Filtro de ID: restringe a quem comprou produto específico (se houver)
+  // e exclui quem não deve entrar
+  function buildIdFilter(extraExclude: string[] = []) {
+    const excluded = [...new Set([...allExcludeIds, ...extraExclude])];
+    if (mustIncludeIds !== null) {
+      // Só aceita quem está na lista de comprou-produto E não está excluído
+      const allowed = mustIncludeIds.filter((id) => !excluded.includes(id));
+      return allowed.length > 0 ? { in: allowed } : { in: ["__none__"] };
+    }
+    return excluded.length > 0 ? { notIn: excluded } : undefined;
+  }
+
   const poolA = await db.customer.findMany({
     where: {
       phone: { not: null },
@@ -210,7 +260,7 @@ Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore"
           ],
         },
       ],
-      id: excludeIds.length > 0 ? { notIn: excludeIds } : undefined,
+      id: buildIdFilter(),
     },
     orderBy: { totalSpent: "desc" },
     take: POOL_A_SIZE,
@@ -225,13 +275,13 @@ Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore"
       fidelized: true,
       assignedShopperId: targetUserId,
       lastOrderAt: lastOrderAtFilter,
-      id: { notIn: [...excludeIds, ...poolAIds] },
+      id: buildIdFilter(poolAIds),
     },
     select: { id: true, firstName: true, lastName: true, segment: true, rfmScore: true },
   });
 
   const allPoolAIds = [...poolAIds, ...fidelizedToTarget.map((c) => c.id)];
-  const poolBExclude = [...excludeIds, ...allPoolAIds];
+  const poolBExclude = allPoolAIds;
 
   // Pool B: alto RFM — agora TAMBÉM respeita o filtro de lastOrderAt
   // para não trazer clientes que compraram recentemente
@@ -249,7 +299,7 @@ Exemplo: {"minDaysSinceOrder":90,"excludeOrdersAfter":"2026-05-01","minRfmScore"
           ],
         },
       ],
-      id: poolBExclude.length > 0 ? { notIn: poolBExclude } : undefined,
+      id: buildIdFilter(poolBExclude),
     },
     orderBy: { rfmScore: "desc" },
     take: POOL_B_SIZE,
