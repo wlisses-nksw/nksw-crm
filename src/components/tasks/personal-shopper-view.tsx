@@ -140,7 +140,7 @@ export function PersonalShopperView() {
       toast.error("Erro ao gerar lista");
     }
     setGenerating(false);
-  }, [qc, isAdmin, isReadOnly, selectedPsId, session?.user?.id]);
+  }, [qc, isAdmin, isSupervisor, isPS, isReadOnly, selectedPsId, selectedDate, prompt, session?.user?.id]);
 
   const clearRecords = useCallback(async () => {
     if (!confirm("Limpar os registros de hoje? Esta ação não pode ser desfeita.")) return;
