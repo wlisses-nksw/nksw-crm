@@ -115,18 +115,20 @@ Campos disponíveis (todos opcionais):
 - minTotalSpent: valor mínimo gasto total em reais
 - minRfmScore: score RFM mínimo (1-12). "bom potencial" = 6, "alto RFM" = 8
 - states: array de siglas de estados brasileiros
-- boughtProducts: array de palavras-chave para buscar no histórico de compras — inclui APENAS clientes que já compraram produtos com esses termos no título.
-- notBoughtProducts: array de palavras-chave — exclui clientes que já compraram esses produtos.
+- boughtProducts: array de FRASES COMPLETAS de produto para buscar no histórico de compras — inclui APENAS clientes que já compraram produtos com essas frases no título. NUNCA separe palavras de um mesmo produto.
+- notBoughtProducts: array de FRASES COMPLETAS — exclui clientes que já compraram esses produtos.
 
-Regras:
-- Nomes de produtos (ex: "calcinha nina", "top alana", "vestido sofie") → extraia como palavras-chave simples: ["nina"], ["alana"], ["sofie"]
-- "que compraram calcinha nina" → boughtProducts: ["nina"]
-- "que não compraram top alana" → notBoughtProducts: ["alana"]
+Regras CRÍTICAS para produtos:
+- Mantenha o nome completo do produto como UMA frase: "calcinha nina" → ["calcinha nina"], "top alana" → ["top alana"], "vestido sofie" → ["vestido sofie"]
+- NUNCA separe em palavras individuais. ERRADO: ["top","nina"]. CERTO: ["top nina"]
+- Se mencionar vários produtos: "calcinha nina e top alana" → ["calcinha nina","top alana"]
+- "que compraram top nina" → boughtProducts: ["top nina"]
+- "que não compraram calcinha alana" → notBoughtProducts: ["calcinha alana"]
 - "retire quem comprou em maio" → excludeOrdersAfter com o 1º dia do mês
 - "não compra há mais de X dias" → minDaysSinceOrder: X
 - Retorne apenas o JSON, sem markdown.
 
-Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtProducts":["alana"],"minRfmScore":6}`,
+Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["top nina","vestido sofie"],"notBoughtProducts":["calcinha alana"],"minRfmScore":6}`,
         }],
       });
       const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
