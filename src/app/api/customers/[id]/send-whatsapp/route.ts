@@ -43,16 +43,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const baseUrl    = process.env.VOLL_BASE_URL!;   // https://nakedsw.vollsc.com/api/send_hsm
   const campaignId = process.env.VOLL_CAMPAIGN_ID!;
 
-  // Parâmetros vão na query string conforme documentação Voll
-  const url = new URL(baseUrl);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("campaign_id", campaignId);
-  url.searchParams.set("media_hsm_configuration_id", campaign.hsmId);
-  url.searchParams.set("contact[phone]", phone);
+  // URLSearchParams codifica colchetes como %5B%5D — a Voll exige colchetes literais
+  // em contact[phone], então montamos a query string manualmente para esse param.
+  const qs = new URLSearchParams({
+    api_key: apiKey,
+    campaign_id: campaignId,
+    media_hsm_configuration_id: campaign.hsmId,
+  });
+  const vollUrl = `${baseUrl}?${qs.toString()}&contact[phone]=${phone}`;
 
-  console.log(`[voll send] campanha=${campaign.id} phone=${phone} — ${url.toString().replace(apiKey, "***")}`);
+  console.log(`[voll send] campanha=${campaign.id} phone=${phone} — ${vollUrl.replace(apiKey, "***")}`);
 
-  const res = await fetch(url.toString(), { method: "POST" });
+  const res = await fetch(vollUrl, { method: "POST" });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
