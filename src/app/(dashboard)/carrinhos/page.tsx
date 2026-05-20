@@ -200,10 +200,18 @@ function CartCard({ cart, tab, onMark }: {
     if (!cart.customer) return;
     setSendingWpp(true);
     try {
-      const res = await fetch(`/api/customers/${cart.customer.id}/send-whatsapp`, { method: "POST" });
+      const res = await fetch(`/api/customers/${cart.customer.id}/send-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignSlug: "carrinho-abandonado" }),
+      });
       const json = await res.json();
-      if (res.ok) toast.success("WhatsApp enviado via Voll!");
-      else toast.error(json.error ?? "Erro ao enviar WhatsApp");
+      if (res.ok) {
+        toast.success("WhatsApp enviado — carrinho marcado como contatado!");
+        onMark(cart.id, true); // marca como contatado automaticamente
+      } else {
+        toast.error(json.error ?? "Erro ao enviar WhatsApp");
+      }
     } catch { toast.error("Erro ao enviar WhatsApp"); }
     setSendingWpp(false);
   };
@@ -246,7 +254,12 @@ function CartCard({ cart, tab, onMark }: {
             </a>
           )}
           {cart.customer?.phone && (
-            <a href={`https://wa.me/${cart.customer.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground">
+            <a
+              href={`https://wa.me/${(() => { const d = cart.customer!.phone!.replace(/\D/g, ""); return (d.length <= 11 ? "55" : "") + d; })()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-foreground"
+            >
               <Phone className="w-3 h-3" />
               {formatPhone(cart.customer.phone)}
             </a>
@@ -273,13 +286,16 @@ function CartCard({ cart, tab, onMark }: {
                   className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 disabled:opacity-50"
                 >
                   <Send className="w-3 h-3" />
-                  {sendingWpp ? "Enviando..." : "WhatsApp"}
+                  {sendingWpp ? "Enviando..." : "Enviar WhatsApp"}
                 </button>
               )}
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
-                <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
-                Contatado
-              </Button>
+              {/* Botão manual para quando não há telefone cadastrado */}
+              {!cart.customer?.phone && (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
+                  <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
+                  Contatado
+                </Button>
+              )}
             </div>
           ) : (
             <button onClick={() => onMark(cart.id, false)} className="text-xs text-muted-foreground hover:text-foreground underline">
