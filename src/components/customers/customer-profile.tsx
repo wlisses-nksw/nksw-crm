@@ -246,8 +246,9 @@ export function CustomerProfile({ customer: initial }: Props) {
                       });
                       const json = await res.json();
                       if (res.ok) {
-                        const vollResp = JSON.stringify(json.data ?? json);
-                        toast.success(`Enviado — Voll: ${vollResp}`, { duration: 8000 });
+                        const info = `phone=${json.phone} hsmId=${json.hsmId}\nURL: ${json.debug_url}`;
+                        toast.success(`Enviado!\n${info}`, { duration: 12000 });
+                        console.log("[voll debug]", json);
                       } else {
                         toast.error(json.error ?? "Erro ao enviar WhatsApp");
                       }
