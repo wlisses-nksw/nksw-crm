@@ -87,14 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     }).catch(() => {}); // não bloqueia se falhar o log
 
-    return NextResponse.json({
-      ok: true,
-      phone,
-      campaign: campaign.id,
-      hsmId: campaign.hsmId,
-      data,
-      debug_url: vollUrl.replace(apiKey, "***"),
-    });
+    return NextResponse.json({ ok: true, phone, campaign: campaign.id, data });
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
