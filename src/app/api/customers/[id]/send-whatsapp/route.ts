@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCampaignById, DEFAULT_CAMPAIGN } from "@/lib/voll";
 
 // Normaliza telefone para formato Voll: 55 + DDD + número (13 dígitos com DDI)
 function toVollPhone(phone: string): string {
@@ -19,6 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
 
+  // Lê o slug da campanha do body (opcional — usa padrão se não informado)
+  const body = await req.json().catch(() => ({}));
+  const campaignSlug: string = body.campaignSlug ?? DEFAULT_CAMPAIGN.id;
+
+  const campaign = getCampaignById(campaignSlug);
+  if (!campaign) {
+    return NextResponse.json({ error: `Campanha '${campaignSlug}' não encontrada` }, { status: 400 });
+  }
+
   const customer = await db.customer.findUnique({
     where: { id },
     select: { id: true, firstName: true, phone: true },
@@ -30,18 +40,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const phone = toVollPhone(customer.phone);
 
   const apiKey     = process.env.VOLL_API_KEY!;
-  const baseUrl    = process.env.VOLL_BASE_URL!;        // https://nakedsw.vollsc.com/api/send_hsm
+  const baseUrl    = process.env.VOLL_BASE_URL!;   // https://nakedsw.vollsc.com/api/send_hsm
   const campaignId = process.env.VOLL_CAMPAIGN_ID!;
-  const hsmId      = process.env.VOLL_HSM_ID!;
 
   // Parâmetros vão na query string conforme documentação Voll
   const url = new URL(baseUrl);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("campaign_id", campaignId);
-  url.searchParams.set("media_hsm_configuration_id", hsmId);
+  url.searchParams.set("media_hsm_configuration_id", campaign.hsmId);
   url.searchParams.set("contact[phone]", phone);
 
-  console.log(`[voll send] disparando para ${phone} — ${url.toString().replace(apiKey, "***")}`);
+  console.log(`[voll send] campanha=${campaign.id} phone=${phone} — ${url.toString().replace(apiKey, "***")}`);
 
   const res = await fetch(url.toString(), { method: "POST" });
 
@@ -63,11 +72,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       direction: "OUTBOUND",
       from: "nakedsw",
       to: phone,
-      body: `HSM disparado — campaign_id: ${campaignId}`,
+      body: `HSM disparado — campanha: ${campaign.name} (${campaign.id})`,
       status: "SENT",
       sentAt: new Date(),
     },
   }).catch(() => {}); // não bloqueia se falhar o log
 
-  return NextResponse.json({ ok: true, phone, data });
+  return NextResponse.json({ ok: true, phone, campaign: campaign.id, data });
 }

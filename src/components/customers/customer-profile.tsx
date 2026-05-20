@@ -62,6 +62,7 @@ export function CustomerProfile({ customer: initial }: Props) {
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [selectedCampaignSlug, setSelectedCampaignSlug] = useState("carrinho-abandonado");
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [selectedTransferShopperId, setSelectedTransferShopperId] = useState("");
 
@@ -224,23 +225,38 @@ export function CustomerProfile({ customer: initial }: Props) {
               </div>
             )}
             {customer.phone && (
-              <button
-                onClick={async () => {
-                  setSendingWhatsapp(true);
-                  try {
-                    const res = await fetch(`/api/customers/${customer.id}/send-whatsapp`, { method: "POST" });
-                    const json = await res.json();
-                    if (res.ok) toast.success("WhatsApp enviado via Voll!");
-                    else toast.error(json.error ?? "Erro ao enviar WhatsApp");
-                  } catch { toast.error("Erro ao enviar WhatsApp"); }
-                  setSendingWhatsapp(false);
-                }}
-                disabled={sendingWhatsapp}
-                className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 disabled:opacity-50 transition-colors"
-              >
-                <Send className="w-3.5 h-3.5" />
-                {sendingWhatsapp ? "Enviando..." : "Enviar WhatsApp"}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedCampaignSlug}
+                  onChange={(e) => setSelectedCampaignSlug(e.target.value)}
+                  disabled={sendingWhatsapp}
+                  className="text-xs border border-border rounded px-1.5 py-0.5 bg-background text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="carrinho-abandonado">Carrinho Abandonado</option>
+                  <option value="continuidade-atendimento">Continuidade de Atendimento</option>
+                </select>
+                <button
+                  onClick={async () => {
+                    setSendingWhatsapp(true);
+                    try {
+                      const res = await fetch(`/api/customers/${customer.id}/send-whatsapp`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ campaignSlug: selectedCampaignSlug }),
+                      });
+                      const json = await res.json();
+                      if (res.ok) toast.success("WhatsApp enviado via Voll!");
+                      else toast.error(json.error ?? "Erro ao enviar WhatsApp");
+                    } catch { toast.error("Erro ao enviar WhatsApp"); }
+                    setSendingWhatsapp(false);
+                  }}
+                  disabled={sendingWhatsapp}
+                  className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700 disabled:opacity-50 transition-colors"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendingWhatsapp ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
             )}
             {customer.city && (
               <InfoRow
