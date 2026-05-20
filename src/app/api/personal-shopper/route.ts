@@ -91,12 +91,15 @@ export async function POST(req: NextRequest) {
     notBoughtProducts?: string[];   // palavras-chave: exclui quem JÁ comprou esses produtos
   }
   let promptFilters: PromptFilters = {};
+  let promptParseError: string | null = null;
+
   if (promptText) {
+    // 1. Tenta Claude para interpretação semântica completa
     try {
       const today = new Date().toISOString().split("T")[0];
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const msg = await anthropic.messages.create({
-        model: "claude-haiku-4-5",
+        model: "claude-3-5-haiku-20241022",
         max_tokens: 512,
         messages: [{
           role: "user",
@@ -112,25 +115,74 @@ Campos disponíveis (todos opcionais):
 - minTotalSpent: valor mínimo gasto total em reais
 - minRfmScore: score RFM mínimo (1-12). "bom potencial" = 6, "alto RFM" = 8
 - states: array de siglas de estados brasileiros
-- boughtProducts: array de palavras-chave para buscar no histórico de compras — inclui APENAS clientes que já compraram produtos com esses termos no título. Use para "que compraram X", "clientes do produto Y", "que já levaram Z".
-- notBoughtProducts: array de palavras-chave — exclui clientes que já compraram esses produtos. Use para "que não compraram X", "sem produto Y".
+- boughtProducts: array de palavras-chave para buscar no histórico de compras — inclui APENAS clientes que já compraram produtos com esses termos no título.
+- notBoughtProducts: array de palavras-chave — exclui clientes que já compraram esses produtos.
 
 Regras:
 - Nomes de produtos (ex: "calcinha nina", "top alana", "vestido sofie") → extraia como palavras-chave simples: ["nina"], ["alana"], ["sofie"]
 - "que compraram calcinha nina" → boughtProducts: ["nina"]
 - "que não compraram top alana" → notBoughtProducts: ["alana"]
-- "retire quem comprou em maio" → excludeOrdersAfter: "2026-05-01"
+- "retire quem comprou em maio" → excludeOrdersAfter com o 1º dia do mês
 - "não compra há mais de X dias" → minDaysSinceOrder: X
-- Retorne apenas o JSON.
+- Retorne apenas o JSON, sem markdown.
 
-Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtProducts":["alana"],"minRfmScore":6}`
+Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtProducts":["alana"],"minRfmScore":6}`,
         }],
       });
       const text = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
       promptFilters = JSON.parse(text.replace(/```json|```/g, "").trim());
-    } catch {
-      // Se falhar, ignora o prompt e usa filtros padrão
+      console.log("[PS IA] Claude extraiu:", JSON.stringify(promptFilters));
+    } catch (err) {
+      promptParseError = err instanceof Error ? err.message : String(err);
+      console.error("[PS IA] Claude falhou, usando regex fallback:", promptParseError);
     }
+
+    // 2. Regex fallback — garante extração dos campos mais comuns mesmo sem Claude
+    const p = promptText.toLowerCase();
+
+    // dias sem comprar
+    if (!promptFilters.minDaysSinceOrder) {
+      const m = p.match(/(\d+)\s*dias?\s*(sem|sem compra|sem comprar|não compra|nao compra|há|ha)/);
+      if (m) promptFilters.minDaysSinceOrder = parseInt(m[1]);
+    }
+
+    // excluir mês específico
+    if (!promptFilters.excludeOrdersAfter) {
+      const meses: Record<string, string> = {
+        janeiro:"01",fevereiro:"02",março:"03",marco:"03",abril:"04",maio:"05",
+        junho:"06",julho:"07",agosto:"08",setembro:"09",outubro:"10",novembro:"11",dezembro:"12",
+      };
+      for (const [nome, num] of Object.entries(meses)) {
+        if (p.includes(nome)) {
+          const yearMatch = p.match(/20\d\d/);
+          const year = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
+          promptFilters.excludeOrdersAfter = `${year}-${num}-01`;
+          break;
+        }
+      }
+    }
+
+    // produtos comprados — padrão: "compraram/comprou/que têm/levaram [termo]"
+    if (!promptFilters.boughtProducts?.length) {
+      const bought = p.match(/(?:compraram?|que\s+t[eê]m?|levaram?|do\s+produto)\s+([a-záéíóúâêîôûãõçàè\s]+?)(?:\s+e\s+(?:n[aã]o\s+)?|\s*,|\s*$)/g);
+      if (bought?.length) {
+        promptFilters.boughtProducts = bought.map((m) =>
+          m.replace(/compraram?|que\s+t[eê]m?|levaram?|do\s+produto/g, "").trim()
+        ).filter(Boolean);
+      }
+    }
+
+    // produtos NÃO comprados — padrão: "não compraram/sem [termo]"
+    if (!promptFilters.notBoughtProducts?.length) {
+      const notBought = p.match(/(?:n[aã]o\s+compraram?|sem\s+(?:o\s+produto\s+)?)\s+([a-záéíóúâêîôûãõçàè\s]+?)(?:\s+e\s+|\s*,|\s*$)/g);
+      if (notBought?.length) {
+        promptFilters.notBoughtProducts = notBought.map((m) =>
+          m.replace(/n[aã]o\s+compraram?|sem\s+(?:o\s+produto\s+)?/g, "").trim()
+        ).filter(Boolean);
+      }
+    }
+
+    console.log("[PS IA] Filtros finais (após fallback):", JSON.stringify(promptFilters));
   }
 
   console.log("[PS IA] promptFilters extraídos:", JSON.stringify(promptFilters));
@@ -359,9 +411,9 @@ Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["nina","sofie"],"notBoughtPro
     ok: true,
     generated: tasks.length,
     pools: { winback: poolA.length, rfm: poolB.length },
-    // Debug: filtros extraídos pelo Claude Haiku — útil para verificar se o prompt foi interpretado corretamente
     extractedFilters: promptFilters,
     productMatchCount: mustIncludeIds !== null ? mustIncludeIds.length : null,
+    promptParseError,
   }, { status: 201 });
 }
 
