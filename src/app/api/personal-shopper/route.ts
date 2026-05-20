@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       const today = new Date().toISOString().split("T")[0];
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const msg = await anthropic.messages.create({
-        model: "claude-3-5-haiku-20241022",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 512,
         messages: [{
           role: "user",
