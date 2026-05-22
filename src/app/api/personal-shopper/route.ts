@@ -28,11 +28,29 @@ export async function GET(req: NextRequest) {
       ? assignedToId ?? undefined
       : session.user.id;
 
+  // Janela de lookback para tarefas pendentes de dias anteriores (30 dias)
+  const lookbackStart = new Date();
+  lookbackStart.setDate(lookbackStart.getDate() - 30);
+  lookbackStart.setHours(0, 0, 0, 0);
+
+  // Quando admin seleciona uma data específica, usa filtro direto.
+  // No modo normal (PS vendo as próprias tarefas), inclui:
+  //   1. Todas as tarefas de hoje (qualquer status)
+  //   2. Tarefas PENDENTES de dias anteriores (últimos 30 dias)
+  const dateFilter = dateParam
+    ? { createdAt: { gte: filterDate } }
+    : {
+        OR: [
+          { createdAt: { gte: todayStart } },
+          { status: "PENDENTE" as const, createdAt: { gte: lookbackStart, lt: todayStart } },
+        ],
+      };
+
   const tasks = await db.task.findMany({
     where: {
       title: { startsWith: PS_PREFIX },
-      createdAt: { gte: filterDate },
       ...(effectiveAssignedToId ? { assignedToId: effectiveAssignedToId } : {}),
+      ...dateFilter,
     },
     include: {
       customer: {
