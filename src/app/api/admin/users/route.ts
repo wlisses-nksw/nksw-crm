@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 
 export async function GET() {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  const role = session?.user?.role;
+  if (!session || (role !== "ADMIN" && role !== "SUPERVISOR")) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
