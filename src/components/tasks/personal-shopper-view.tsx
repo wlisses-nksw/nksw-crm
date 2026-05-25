@@ -62,7 +62,7 @@ export function PersonalShopperView() {
   const isAdmin = session?.user?.role === "ADMIN";
   const isSupervisor = session?.user?.role === "SUPERVISOR";
   const isPS = session?.user?.role === "PERSONAL_SHOPPER";
-  const isReadOnly = isSupervisor;
+  const isReadOnly = false; // supervisor tem as mesmas permissões de geração que admin
   const canClear = isAdmin || isSupervisor;
 
   const [selectedPsId, setSelectedPsId] = useState<string>("");
