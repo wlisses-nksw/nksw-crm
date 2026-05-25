@@ -17,7 +17,8 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ data: carts, total: carts.length });
+  const pending = carts.filter(c => !c.contactedAt).length;
+  return NextResponse.json({ data: carts, total: carts.length, pending });
 }
 
 export async function PATCH(req: NextRequest) {

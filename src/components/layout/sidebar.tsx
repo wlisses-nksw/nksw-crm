@@ -38,7 +38,7 @@ export function Sidebar() {
   useEffect(() => {
     fetch("/api/abandoned-carts")
       .then(r => r.json())
-      .then(({ total }) => setCartCount(total ?? 0))
+      .then(({ pending }) => setCartCount(pending ?? 0))
       .catch(() => {});
   }, [pathname]);
 

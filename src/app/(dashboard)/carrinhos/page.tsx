@@ -289,13 +289,11 @@ function CartCard({ cart, tab, onMark }: {
                   {sendingWpp ? "Enviando..." : "Enviar WhatsApp"}
                 </button>
               )}
-              {/* Botão manual para quando não há telefone cadastrado */}
-              {!cart.customer?.phone && (
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
-                  <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
-                  Contatado
-                </Button>
-              )}
+              {/* Contatado sempre visível — para contato via outro canal ou sem telefone */}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onMark(cart.id, true)}>
+                <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
+                Contatado
+              </Button>
             </div>
           ) : (
             <button onClick={() => onMark(cart.id, false)} className="text-xs text-muted-foreground hover:text-foreground underline">
