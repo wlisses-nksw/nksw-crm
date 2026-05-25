@@ -260,10 +260,13 @@ Exemplo: {"minDaysSinceOrder":90,"boughtProducts":["top nina","vestido sofie"],"
   const cooldownDate = new Date();
   cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS);
 
+  // Cooldown baseado em quando o CONTATO foi feito (updatedAt da task CONCLUIDA),
+  // não em quando a task foi criada. Assim o prazo de 30 dias conta da data do contato.
   const recentlyContacted = await db.task.findMany({
     where: {
       title: { startsWith: PS_PREFIX },
-      createdAt: { gte: cooldownDate },
+      status: "CONCLUIDA",
+      updatedAt: { gte: cooldownDate },
       customerId: { not: null },
     },
     select: { customerId: true },
@@ -456,11 +459,19 @@ export async function DELETE(req: NextRequest) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  const lookbackStart = new Date();
+  lookbackStart.setDate(lookbackStart.getDate() - 30);
+  lookbackStart.setHours(0, 0, 0, 0);
+
+  // Remove tasks de hoje (qualquer status) + tasks PENDENTES dos últimos 30 dias
   const { count } = await db.task.deleteMany({
     where: {
       title: { startsWith: PS_PREFIX },
-      createdAt: { gte: todayStart },
       ...(assignedToId ? { assignedToId } : {}),
+      OR: [
+        { createdAt: { gte: todayStart } },
+        { status: "PENDENTE", createdAt: { gte: lookbackStart, lt: todayStart } },
+      ],
     },
   });
 

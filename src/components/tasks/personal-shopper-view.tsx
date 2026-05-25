@@ -70,6 +70,7 @@ export function PersonalShopperView() {
   const [prompt, setPrompt] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   // Lista de PS users (só admin carrega)
   const { data: usersData } = useQuery<{ data: PSUser[] }>({
@@ -143,7 +144,8 @@ export function PersonalShopperView() {
   }, [qc, isAdmin, isSupervisor, isPS, isReadOnly, selectedPsId, selectedDate, prompt, session?.user?.id]);
 
   const clearRecords = useCallback(async () => {
-    if (!confirm("Limpar os registros de hoje? Esta ação não pode ser desfeita.")) return;
+    if (!confirmClear) { setConfirmClear(true); return; }
+    setConfirmClear(false);
     setClearing(true);
     try {
       const params = selectedPsId ? `?assignedToId=${selectedPsId}` : "";
@@ -159,7 +161,7 @@ export function PersonalShopperView() {
       toast.error("Erro ao limpar registros");
     }
     setClearing(false);
-  }, [isAdmin, selectedPsId, qc]);
+  }, [confirmClear, isAdmin, selectedPsId, qc]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">Carregando...</div>;
@@ -217,10 +219,10 @@ export function PersonalShopperView() {
               variant="outline"
               onClick={clearRecords}
               disabled={clearing}
-              className="gap-1.5 h-8 text-red-600 border-red-200 hover:bg-red-50"
+              className={`gap-1.5 h-8 border-red-200 hover:bg-red-50 ${confirmClear ? "bg-red-600 text-white hover:bg-red-700" : "text-red-600"}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {clearing ? "Limpando..." : "Limpar registros"}
+              {clearing ? "Limpando..." : confirmClear ? "Confirmar limpeza" : "Limpar registros"}
             </Button>
           </div>
 
@@ -295,10 +297,10 @@ export function PersonalShopperView() {
                 size="sm"
                 onClick={clearRecords}
                 disabled={clearing}
-                className="gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                className={`gap-1.5 text-xs hover:bg-red-50 ${confirmClear ? "text-red-700 font-semibold" : "text-red-500 hover:text-red-600"}`}
               >
                 <Trash2 className="w-3 h-3" />
-                {clearing ? "Limpando..." : "Limpar registros de hoje"}
+                {clearing ? "Limpando..." : confirmClear ? "Confirmar?" : "Limpar registros"}
               </Button>
             )}
 
