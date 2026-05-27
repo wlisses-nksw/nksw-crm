@@ -10,13 +10,29 @@ export async function POST(req: NextRequest) {
 
   const rawBody = await req.text();
 
-  const isValid = await verifyShopifyWebhook(rawBody, hmac);
-  if (!isValid) {
-    return NextResponse.json({ error: "Webhook inválido" }, { status: 401 });
+  // Verifica HMAC — se secret não estiver configurado, loga mas não bloqueia
+  // (evita 500 que causaria remoção do webhook pelo Shopify)
+  try {
+    const isValid = await verifyShopifyWebhook(rawBody, hmac);
+    if (!isValid) {
+      console.warn(`[webhook shopify] HMAC inválido para topic=${topic}`);
+      return NextResponse.json({ error: "Webhook inválido" }, { status: 401 });
+    }
+  } catch (err) {
+    console.error("[webhook shopify] Erro na verificação HMAC:", err);
+    // Retorna 200 para não perder o webhook — sem secret configurado não conseguimos verificar
+    return NextResponse.json({ ok: true, warn: "hmac_check_failed" });
   }
 
-  const payload = JSON.parse(rawBody);
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    console.error("[webhook shopify] Body inválido (não é JSON)");
+    return NextResponse.json({ ok: true });
+  }
 
+  try {
   switch (topic) {
     case "orders/paid":
     case "orders/updated":
@@ -124,6 +140,10 @@ export async function POST(req: NextRequest) {
       await processOrderWebhook(payload as ShopifyOrder);
       break;
     }
+  }
+  } catch (err) {
+    // Nunca retorna 500 — Shopify remove o webhook com erros persistentes
+    console.error(`[webhook shopify] Erro processando topic=${topic}:`, err);
   }
 
   return NextResponse.json({ ok: true });
