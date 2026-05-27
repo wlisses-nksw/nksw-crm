@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, warn: "hmac_check_failed" });
   }
 
-  let payload: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payload: any;
   try {
     payload = JSON.parse(rawBody);
   } catch {
